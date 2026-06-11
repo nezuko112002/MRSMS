@@ -1,0 +1,19 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/approvals/[id]/page": "app/approvals/[id]/page.js",
+  "/approvals/page": "app/approvals/page.js",
+  "/confirmations/[id]/page": "app/confirmations/[id]/page.js",
+  "/confirmations/page": "app/confirmations/page.js",
+  "/costs/page": "app/costs/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/inventory/page": "app/inventory/page.js",
+  "/requests/[id]/page": "app/requests/[id]/page.js",
+  "/page": "app/page.js",
+  "/requests/page": "app/requests/page.js",
+  "/warehouse/[id]/page": "app/warehouse/[id]/page.js",
+  "/requests/new/page": "app/requests/new/page.js",
+  "/warehouse/release/page": "app/warehouse/release/page.js",
+  "/warehouse/page": "app/warehouse/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js"
+}
