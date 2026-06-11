@@ -82,8 +82,7 @@ function RequestsPageContent() {
     }
     if (search) result = result.filter(r =>
       r.request_no.toLowerCase().includes(search.toLowerCase()) ||
-      r.project_name.toLowerCase().includes(search.toLowerCase()) ||
-      r.department.toLowerCase().includes(search.toLowerCase())
+      r.project_name.toLowerCase().includes(search.toLowerCase())
     );
     setFiltered(result);
   }, [requests, search, statusFilter]);
@@ -121,7 +120,7 @@ function RequestsPageContent() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search requests, projects..."
+              placeholder="Search requests or projects..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="glass-input pl-9"
@@ -164,10 +163,8 @@ function RequestsPageContent() {
                 <thead>
                   <tr>
                     <th>Request No.</th>
-                    <th>Project / Department</th>
+                    <th>Project</th>
                     <th className="hidden md:table-cell">Requested By</th>
-                    <th className="hidden sm:table-cell">Required Date</th>
-                    <th className="hidden lg:table-cell">Purpose</th>
                     <th>Status</th>
                     <th className="hidden md:table-cell">Items</th>
                     <th className="w-10" />
@@ -188,16 +185,9 @@ function RequestsPageContent() {
                       </td>
                       <td>
                         <p className="font-medium text-gray-800 dark:text-gray-200">{req.project_name}</p>
-                        <p className="text-xs text-gray-400">{req.department}</p>
                       </td>
                       <td className="hidden md:table-cell text-sm text-gray-600 dark:text-gray-300">
                         {(req as MaterialRequest & { profile?: { full_name: string } }).profile?.full_name}
-                      </td>
-                      <td className="hidden sm:table-cell text-sm text-gray-500">
-                        {formatDate(req.required_date)}
-                      </td>
-                      <td className="hidden lg:table-cell">
-                        <p className="text-xs text-gray-500 truncate max-w-[200px]">{req.purpose}</p>
                       </td>
                       <td>
                         <RequestStatusWithItems

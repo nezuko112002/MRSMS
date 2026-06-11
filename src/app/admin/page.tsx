@@ -192,7 +192,7 @@ export default function AdminPage() {
                         </td>
                         <td className="hidden md:table-cell text-xs text-gray-400">{formatDate(user.created_at)}</td>
                         <td>
-                          <span className={`badge ${user.is_active ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-red-500/15 text-red-400 border-red-500/20'}`}>
+                          <span className={`badge ${user.is_active ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'}`}>
                             {user.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>

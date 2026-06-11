@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Sun, Moon, Bell, Menu, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNotificationsSheet } from '@/hooks/useNotificationsSheet';
 
 interface HeaderProps {
   title?: string;
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export function Header({ title, onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
   const { profile } = useAuth();
+  const { openNotifications, unreadCount } = useNotificationsSheet();
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
@@ -29,12 +31,14 @@ export function Header({ title, onMobileMenuToggle, mobileMenuOpen }: HeaderProp
   }
 
   return (
-    <header className="glass sticky top-0 z-20 px-4 md:px-6 py-3 flex items-center gap-3 border-b border-white/20 dark:border-white/10">
+    <header className="glass sticky top-0 z-50 px-4 md:px-6 py-3 flex items-center gap-3 border-b border-white/20 dark:border-white/10">
       {/* Mobile menu toggle */}
       <button
-        className="md:hidden btn-ghost p-2"
+        type="button"
+        className="md:hidden btn-ghost p-2 relative z-50"
         onClick={onMobileMenuToggle}
         aria-label="Toggle menu"
+        aria-expanded={mobileMenuOpen}
       >
         {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
@@ -59,10 +63,18 @@ export function Header({ title, onMobileMenuToggle, mobileMenuOpen }: HeaderProp
           }
         </button>
 
-        {/* Notifications (placeholder) */}
-        <button className="btn-ghost p-2 rounded-xl relative">
+        <button
+          type="button"
+          onClick={openNotifications}
+          className="btn-ghost p-2 rounded-xl relative"
+          aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : 'Notifications'}
+        >
           <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User avatar (mobile) */}

@@ -97,7 +97,7 @@ function WarehousePageContent() {
               <p className="text-xs text-gray-400">Approved requests awaiting material release</p>
             </div>
             {pending.length > 0 && (
-              <span className="ml-auto badge bg-violet-500/15 text-violet-400 border-violet-500/20">{pending.length}</span>
+              <span className="ml-auto badge bg-violet-500/15 text-violet-400 border border-violet-500/20">{pending.length}</span>
             )}
           </div>
           {pending.length === 0 ? (

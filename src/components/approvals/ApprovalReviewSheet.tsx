@@ -15,7 +15,7 @@ import {
 import { RequestStatusWithItems, ItemProgressBadges, ItemStatusBadge } from '@/components/ui/StatusBadge';
 import { ApprovalTimeline } from '@/components/ui/ApprovalTimeline';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
-import { formatDate, formatNumber, requestNeedsApprovalReview, computeRequestStatusFromItems } from '@/lib/utils';
+import { formatDate, formatNumber, requestNeedsApprovalReview, computeRequestStatusFromItems, getInitialItemReviewAction } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem, ApprovalHistory } from '@/types';
 import { CheckCircle, XCircle, AlertCircle, Info, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -67,16 +67,12 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
     ]);
     setRequest(reqRes.data);
     const its = (itemsRes.data ?? []) as MaterialRequestItem[];
-    const hasPartialProgress = its.some(i => i.status === 'approved' || i.status === 'rejected');
     setItems(its);
     setReviews(its.map(i => ({
       id: i.id,
       approved_qty: i.approved_qty ?? i.requested_qty,
       reject_reason: i.reject_reason || '',
-      action: i.status === 'rejected' ? 'reject' as const
-        : i.status === 'approved' ? 'approve' as const
-        : hasPartialProgress ? 'pending' as const
-        : 'approve' as const,
+      action: getInitialItemReviewAction(i),
     })));
     setHistory(histRes.data || []);
     setLoading(false);
@@ -214,6 +210,10 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
       <SheetContent side="right" className="p-0 sm:max-w-2xl flex flex-col h-full">
         <SheetCloseButton />
 
+        {(loading || !request) && (
+          <SheetTitle className="sr-only">Approval review</SheetTitle>
+        )}
+
         {loading || !request ? (
           <div className="flex items-center justify-center h-full">
             <PageLoader />
@@ -334,7 +334,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
                                 />
                                 <span className="text-xs text-gray-400">{item.unit}</span>
                                 {Number(review.approved_qty) < item.requested_qty && review.approved_qty !== '' && (
-                                  <span className="badge bg-amber-500/15 text-amber-400 border-amber-500/20">
+                                  <span className="badge bg-amber-500/15 text-amber-400 border border-amber-500/20">
                                     <AlertCircle size={11} /> Adjusted
                                   </span>
                                 )}

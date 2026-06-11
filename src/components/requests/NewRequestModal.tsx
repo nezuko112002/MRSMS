@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useId } from 'react';
+import { useCallback, useEffect, useState, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,8 +13,7 @@ import {
   DialogFooter,
   DialogCloseButton,
 } from '@/components/ui/dialog';
-import { DepartmentSelect } from '@/components/ui/department-select';
-import { DatePicker } from '@/components/ui/date-picker';
+import { ProjectSelect } from '@/components/ui/project-select';
 import { UnitSelect } from '@/components/ui/unit-select';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
@@ -38,37 +37,18 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
   const firstItemId = useId();
   const [loading, setLoading] = useState(false);
 
-  const [projectName, setProjectName] = useState('');
-  const [department, setDepartment] = useState('');
-  const [requiredDate, setRequiredDate] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [notes, setNotes] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [items, setItems] = useState<RequestFormItem[]>(() => [createEmptyItem(firstItemId)]);
 
-  const minDate = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 1);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }, []);
-
   const resetForm = useCallback(() => {
-    setProjectName('');
-    setDepartment(profile?.department || '');
-    setRequiredDate('');
-    setPurpose('');
-    setNotes('');
+    setProjectId('');
     setItems([createEmptyItem(firstItemId)]);
     setLoading(false);
-  }, [profile?.department, firstItemId]);
+  }, [firstItemId]);
 
   useEffect(() => {
-    if (open) {
-      setDepartment(prev => prev || profile?.department || '');
-    } else {
-      resetForm();
-    }
-  }, [open, profile?.department, resetForm]);
+    if (!open) resetForm();
+  }, [open, resetForm]);
 
   function addItem() {
     setItems(prev => [...prev, createEmptyItem(crypto.randomUUID())]);
@@ -88,8 +68,8 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
 
   async function handleSubmit(status: 'draft' | 'pending') {
     if (!profile) return;
-    if (!projectName.trim() || !department || !requiredDate || !purpose.trim()) {
-      toast.error('Please fill in all required header fields');
+    if (!projectId) {
+      toast.error('Please select a project');
       return;
     }
     const invalidItems = items.filter(
@@ -102,13 +82,23 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
 
     setLoading(true);
     try {
+      const { data: project, error: projectErr } = await supabase
+        .from('projects')
+        .select('name, department')
+        .eq('id', projectId)
+        .eq('is_active', true)
+        .single();
+
+      if (projectErr || !project) throw new Error('Selected project is not available');
+
       const { data: req, error } = await supabase.from('material_requests').insert({
-        project_name: projectName.trim(),
-        department,
+        project_id: projectId,
+        project_name: project.name,
+        department: project.department,
         requested_by: profile.id,
-        required_date: requiredDate,
-        purpose: purpose.trim(),
-        notes: notes.trim() || null,
+        purpose: null,
+        required_date: null,
+        notes: null,
         status,
       }).select().single();
 
@@ -159,67 +149,20 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
         <DialogCloseButton />
         <DialogHeader>
           <DialogTitle>New Material Request</DialogTitle>
-          <DialogDescription>Fill in the details and add all required items.</DialogDescription>
+          <DialogDescription>Select a project and add the items you need.</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           <section>
             <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
               <Package size={16} className="text-brand-500" />
-              Request Details
+              Project
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Project Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={e => setProjectName(e.target.value)}
-                  className="glass-input"
-                  placeholder="e.g. School Building Phase 2"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Department <span className="text-red-400">*</span>
-                </label>
-                <DepartmentSelect value={department} onChange={setDepartment} placeholder="Select department..." />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Required Date <span className="text-red-400">*</span>
-                </label>
-                <DatePicker
-                  value={requiredDate}
-                  onChange={setRequiredDate}
-                  minDate={minDate}
-                  placeholder="Pick required date"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Purpose <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={purpose}
-                  onChange={e => setPurpose(e.target.value)}
-                  className="glass-input"
-                  placeholder="e.g. Foundation works"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  rows={2}
-                  className="glass-input resize-none"
-                  placeholder="Additional notes..."
-                />
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Project <span className="text-red-400">*</span>
+              </label>
+              <ProjectSelect value={projectId} onChange={setProjectId} placeholder="Select project..." />
             </div>
           </section>
 
@@ -228,7 +171,7 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
                 <Package size={16} className="text-brand-500" />
                 Request Items
-                <span className="badge bg-brand-500/15 text-brand-400 border-brand-500/20 text-xs">
+                <span className="badge bg-brand-500/15 text-brand-400 border border-brand-500/20 text-xs">
                   {items.length}
                 </span>
               </h3>

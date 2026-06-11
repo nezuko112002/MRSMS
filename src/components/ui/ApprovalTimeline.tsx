@@ -50,7 +50,7 @@ export function ApprovalTimeline({ history, items = [] }: TimelineProps) {
                   {itemRefs.map(ref => (
                     <span
                       key={`${entry.id}-${ref}`}
-                      className="badge text-[10px] px-2 py-0.5 bg-brand-500/10 text-brand-400 border-brand-500/20"
+                      className="badge text-[10px] px-2 py-0.5 bg-brand-500/15 text-brand-400 border border-brand-500/20"
                     >
                       {ref}
                     </span>

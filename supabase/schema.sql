@@ -106,16 +106,36 @@ create policy "Warehouse and admin can manage inventory" on inventory for all us
 );
 
 -- ============================================================
+-- PROJECTS (admin-managed)
+-- ============================================================
+create table projects (
+  id           uuid primary key default uuid_generate_v4(),
+  name         text not null unique,
+  department   text,
+  is_active    boolean not null default true,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+alter table projects enable row level security;
+create policy "Active projects visible to authenticated" on projects
+  for select using (is_active = true or public.is_admin());
+create policy "Admins manage projects" on projects
+  for all using (public.is_admin())
+  with check (public.is_admin());
+
+-- ============================================================
 -- MATERIAL REQUESTS
 -- ============================================================
 create table material_requests (
   id            uuid primary key default uuid_generate_v4(),
   request_no    text not null unique,
+  project_id    uuid references projects(id),
   project_name  text not null,
-  department    text not null,
+  department    text,
   requested_by  uuid not null references profiles(id),
-  required_date date not null,
-  purpose       text not null,
+  required_date date,
+  purpose       text,
   status        request_status not null default 'draft',
   notes         text,
   created_at    timestamptz not null default now(),
@@ -179,6 +199,7 @@ create table material_request_items (
   received_qty  numeric(12,2),
   remarks       text,
   reject_reason text,
+  release_deferred boolean not null default false,
   status        item_status not null default 'pending',
   sort_order    int not null default 0,
   created_at    timestamptz not null default now(),
@@ -338,7 +359,9 @@ insert into inventory (item_code, description, unit, stock_qty, unit_cost, minim
 -- ============================================================
 -- INDEXES
 -- ============================================================
+create index idx_projects_is_active      on projects(is_active);
 create index idx_requests_status         on material_requests(status);
+create index idx_requests_project_id     on material_requests(project_id);
 create index idx_requests_requested_by   on material_requests(requested_by);
 create index idx_requests_created_at     on material_requests(created_at desc);
 create index idx_items_request_id        on material_request_items(request_id);
@@ -358,6 +381,7 @@ end;
 $$;
 
 create trigger trg_profiles_updated_at    before update on profiles            for each row execute procedure update_updated_at();
+create trigger trg_projects_updated_at    before update on projects            for each row execute procedure update_updated_at();
 create trigger trg_inventory_updated_at   before update on inventory            for each row execute procedure update_updated_at();
 create trigger trg_requests_updated_at    before update on material_requests    for each row execute procedure update_updated_at();
 create trigger trg_items_updated_at       before update on material_request_items for each row execute procedure update_updated_at();

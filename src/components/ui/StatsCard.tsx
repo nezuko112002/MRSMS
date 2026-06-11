@@ -21,8 +21,8 @@ export function StatsCard({ label, value, icon: Icon, iconColor = 'text-brand-50
           <span className={cn(
             'text-xs font-medium badge',
             trend.positive !== false
-              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
-              : 'bg-red-500/15 text-red-400 border-red-500/20'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+              : 'bg-red-500/15 text-red-400 border border-red-500/20'
           )}>
             {trend.positive !== false ? '+' : ''}{trend.value}%
           </span>

@@ -1,14 +1,21 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format, formatDistanceToNow } from 'date-fns';
-import type { RequestStatus, ItemStatus, UserRole, MaterialRequest, MaterialRequestItem } from '@/types';
+import type { RequestStatus, ItemStatus, UserRole, MaterialRequest, MaterialRequestItem, Project } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date) {
+export function formatDate(date: string | Date | null | undefined) {
+  if (!date) return '—';
   return format(new Date(date), 'MMM d, yyyy');
+}
+
+export function getRequestProjectName(
+  request: Pick<MaterialRequest, 'project_name'> & { project?: Pick<Project, 'name'> | null }
+) {
+  return request.project?.name ?? request.project_name;
 }
 
 export function formatDateTime(date: string | Date) {
@@ -27,25 +34,25 @@ export function formatNumber(n: number) {
   return new Intl.NumberFormat('en-PH').format(n);
 }
 
-// Status badge config
+// Status badge config — class names defined in globals.css
 export const REQUEST_STATUS_CONFIG: Record<RequestStatus, { label: string; color: string }> = {
-  draft:               { label: 'Draft',              color: 'bg-slate-500/15 text-slate-400 border-slate-500/20' },
-  pending:             { label: 'Pending',             color: 'bg-amber-500/15 text-amber-400 border-amber-500/20' },
-  approved:            { label: 'Approved',            color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
-  partially_approved:  { label: 'Partially Approved',  color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20' },
-  rejected:            { label: 'Rejected',            color: 'bg-red-500/15 text-red-400 border-red-500/20' },
-  released:            { label: 'Released',            color: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
-  partially_released:  { label: 'Partially Released',  color: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
-  confirmed:           { label: 'Confirmed',           color: 'bg-teal-500/15 text-teal-400 border-teal-500/20' },
-  completed:           { label: 'Completed',           color: 'bg-green-500/15 text-green-400 border-green-500/20' },
+  draft:               { label: 'Draft',              color: 'badge-draft' },
+  pending:             { label: 'Pending',             color: 'badge-pending' },
+  approved:            { label: 'Approved',            color: 'badge-approved' },
+  partially_approved:  { label: 'Partially Approved',  color: 'badge-partially-approved' },
+  rejected:            { label: 'Rejected',            color: 'badge-rejected' },
+  released:            { label: 'Released',            color: 'badge-released' },
+  partially_released:  { label: 'Partially Released',  color: 'badge-partially-released' },
+  confirmed:           { label: 'Confirmed',           color: 'badge-confirmed' },
+  completed:           { label: 'Completed',           color: 'badge-completed' },
 };
 
 export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: string }> = {
-  pending:  { label: 'Pending',  color: 'bg-amber-500/15 text-amber-400 border-amber-500/20' },
-  approved: { label: 'Approved', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
-  rejected: { label: 'Rejected', color: 'bg-red-500/15 text-red-400 border-red-500/20' },
-  released: { label: 'Released', color: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
-  received: { label: 'Received', color: 'bg-teal-500/15 text-teal-400 border-teal-500/20' },
+  pending:  { label: 'Pending',  color: 'badge-item-pending' },
+  approved: { label: 'Approved', color: 'badge-item-approved' },
+  rejected: { label: 'Rejected', color: 'badge-item-rejected' },
+  released: { label: 'Released', color: 'badge-item-released' },
+  received: { label: 'Received', color: 'badge-item-received' },
 };
 
 export function canCreateRequest(role: UserRole | undefined): boolean {
@@ -60,13 +67,23 @@ export function hasPendingApprovalItems(
   return !!items?.some(i => i.status === 'pending');
 }
 
+export function getInitialItemReviewAction(
+  item: Pick<MaterialRequestItem, 'status'>
+): 'approve' | 'reject' | 'pending' {
+  if (item.status === 'rejected') return 'reject';
+  if (item.status === 'approved') return 'approve';
+  if (item.status === 'pending') return 'pending';
+  return 'approve';
+}
+
 export function requestNeedsApprovalReview(
   request: Pick<MaterialRequest, 'status'> | null | undefined,
   items?: Pick<MaterialRequestItem, 'status'>[] | null
 ): boolean {
   if (!request) return false;
+  if (request.status === 'draft') return false;
   if (items) return hasPendingApprovalItems(items);
-  return request.status === 'pending';
+  return request.status === 'pending' || request.status === 'partially_approved' || request.status === 'partially_released';
 }
 
 export interface ItemStatusSummary {
@@ -95,6 +112,8 @@ export function getDisplayRequestStatus(
   request: Pick<MaterialRequest, 'status'>,
   items?: Pick<MaterialRequestItem, 'status'>[] | null
 ): RequestStatus {
+  // Draft is a request-level state before submission; item rows still default to pending.
+  if (request.status === 'draft') return 'draft';
   if (items && items.length > 0) return computeRequestStatusFromItems(items);
   return request.status;
 }
@@ -184,11 +203,11 @@ export function canDeleteRequest(
 }
 
 export const ROLE_CONFIG: Record<UserRole, { label: string; color: string }> = {
-  requestor: { label: 'Requestor',       color: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
-  manager:   { label: 'Dept. Manager',   color: 'bg-amber-500/15 text-amber-400 border-amber-500/20' },
-  warehouse: { label: 'Warehouse',       color: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
-  finance:   { label: 'Finance',         color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
-  admin:     { label: 'Administrator',   color: 'bg-rose-500/15 text-rose-400 border-rose-500/20' },
+  requestor: { label: 'Requestor',       color: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+  manager:   { label: 'Dept. Manager',   color: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
+  warehouse: { label: 'Warehouse',       color: 'bg-violet-500/15 text-violet-400 border border-violet-500/20' },
+  finance:   { label: 'Finance',         color: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' },
+  admin:     { label: 'Administrator',   color: 'bg-rose-500/15 text-rose-400 border border-rose-500/20' },
 };
 
 export const DEPARTMENTS = [

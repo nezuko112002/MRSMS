@@ -31,20 +31,31 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  department: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MaterialRequest {
   id: string;
   request_no: string;
+  project_id: string | null;
   project_name: string;
-  department: string;
+  department: string | null;
   requested_by: string;
-  required_date: string;
-  purpose: string;
+  required_date: string | null;
+  purpose: string | null;
   status: RequestStatus;
   notes: string | null;
   created_at: string;
   updated_at: string;
   // Joins
   profile?: Profile;
+  project?: Project;
   items?: MaterialRequestItem[];
 }
 
@@ -60,6 +71,7 @@ export interface MaterialRequestItem {
   received_qty: number | null;
   remarks: string | null;
   reject_reason: string | null;
+  release_deferred?: boolean;
   status: ItemStatus;
   sort_order: number;
   created_at: string;

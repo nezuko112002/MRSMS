@@ -133,6 +133,10 @@ export function ConfirmationReceiptSheet({ open, requestId, onOpenChange, onSucc
       <SheetContent side="right" className="p-0 sm:max-w-2xl flex flex-col h-full">
         <SheetCloseButton />
 
+        {(loading || !request) && (
+          <SheetTitle className="sr-only">Confirmation receipt</SheetTitle>
+        )}
+
         {loading || !request ? (
           <div className="flex items-center justify-center h-full">
             <PageLoader />

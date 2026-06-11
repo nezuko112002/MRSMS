@@ -50,6 +50,7 @@ function ApprovalsPageContent() {
         ? supabase.from('material_requests')
             .select('*, profile:profiles(full_name, department), items:material_request_items(status)')
             .in('id', pendingRequestIds)
+            .neq('status', 'draft')
             .order('created_at')
         : Promise.resolve({ data: [] as RequestWithItems[] }),
       supabase.from('material_requests')
@@ -103,7 +104,7 @@ function ApprovalsPageContent() {
               <p className="text-xs text-gray-400">Requests waiting for your approval</p>
             </div>
             {pending.length > 0 && (
-              <span className="ml-auto badge bg-amber-500/15 text-amber-400 border-amber-500/20">
+              <span className="ml-auto badge bg-amber-500/15 text-amber-400 border border-amber-500/20">
                 {pending.length}
               </span>
             )}
