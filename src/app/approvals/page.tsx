@@ -39,7 +39,11 @@ function ApprovalsPageContent() {
       .select('request_id')
       .eq('status', 'pending');
 
-    const pendingRequestIds = [...new Set((pendingItemRows || []).map(r => r.request_id))];
+    const pendingRequestIds = [
+      ...new Set(
+        (pendingItemRows ?? []).map((r: Pick<MaterialRequestItem, 'request_id'>) => r.request_id)
+      ),
+    ];
 
     const [pendingRes, reviewedRes] = await Promise.all([
       pendingRequestIds.length > 0
@@ -54,8 +58,8 @@ function ApprovalsPageContent() {
         .order('updated_at', { ascending: false }),
     ]);
 
-    const reviewed = (reviewedRes.data || []).filter(req =>
-      !(req as RequestWithItems).items?.some(i => i.status === 'pending')
+    const reviewed = ((reviewedRes.data ?? []) as RequestWithItems[]).filter(
+      req => !req.items?.some(i => i.status === 'pending')
     );
 
     setPending(pendingRes.data || []);

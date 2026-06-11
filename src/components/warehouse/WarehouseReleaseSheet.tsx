@@ -58,7 +58,7 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
       supabase.from('material_request_items').select('*').eq('request_id', requestId).in('status', ['approved']).order('sort_order'),
     ]);
 
-    const its = itemsRes.data || [];
+    const its = (itemsRes.data ?? []) as MaterialRequestItem[];
     setRequest(reqRes.data);
     setReleaseItems(its.map(item => ({
       item,

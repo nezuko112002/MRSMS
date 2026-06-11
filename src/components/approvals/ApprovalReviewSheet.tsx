@@ -66,7 +66,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
       supabase.from('approval_history').select('*, profile:profiles(full_name)').eq('request_id', requestId).order('created_at'),
     ]);
     setRequest(reqRes.data);
-    const its = itemsRes.data || [];
+    const its = (itemsRes.data ?? []) as MaterialRequestItem[];
     const hasPartialProgress = its.some(i => i.status === 'approved' || i.status === 'rejected');
     setItems(its);
     setReviews(its.map(i => ({

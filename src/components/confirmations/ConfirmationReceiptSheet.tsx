@@ -60,7 +60,7 @@ export function ConfirmationReceiptSheet({ open, requestId, onOpenChange, onSucc
         .order('sort_order'),
     ]);
 
-    const its = itemsRes.data || [];
+    const its = (itemsRes.data ?? []) as MaterialRequestItem[];
     const initQtys: Record<string, number> = {};
     const initCond: Record<string, string> = {};
     its.forEach(i => {

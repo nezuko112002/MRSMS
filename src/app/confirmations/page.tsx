@@ -36,7 +36,11 @@ function ConfirmationsPageContent() {
       .select('request_id')
       .eq('status', 'released');
 
-    const requestIds = [...new Set((releasedRows || []).map(r => r.request_id))];
+    const requestIds = [
+      ...new Set(
+        (releasedRows ?? []).map((r: Pick<MaterialRequestItem, 'request_id'>) => r.request_id)
+      ),
+    ];
 
     if (requestIds.length === 0) {
       setPending([]);

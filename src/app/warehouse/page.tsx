@@ -37,7 +37,11 @@ function WarehousePageContent() {
       .select('request_id')
       .eq('status', 'approved');
 
-    const readyIds = [...new Set((approvedItemRows || []).map(r => r.request_id))];
+    const readyIds = [
+      ...new Set(
+        (approvedItemRows ?? []).map((r: Pick<MaterialRequestItem, 'request_id'>) => r.request_id)
+      ),
+    ];
 
     const [readyRes, relRes] = await Promise.all([
       readyIds.length > 0

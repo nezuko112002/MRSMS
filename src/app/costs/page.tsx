@@ -30,7 +30,7 @@ export default function CostsPage() {
       .select('*')
       .order('recorded_at', { ascending: false });
 
-    const recs = data || [];
+    const recs = (data ?? []) as CostRecord[];
     setRecords(recs);
 
     // Build project summary
