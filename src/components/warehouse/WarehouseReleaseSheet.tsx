@@ -305,7 +305,8 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
         }),
       });
 
-      const stillApproved = (allItems || []).filter(i => i.status === 'approved').length;
+      const stillApproved = ((allItems ?? []) as Pick<MaterialRequestItem, 'status'>[])
+        .filter(i => i.status === 'approved').length;
       const successMessage = slipNo
         ? stillApproved > 0
           ? `Released — ${slipNo}. Remaining items stay in queue.`
