@@ -28,8 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
-      const { user } = data;
+    const syncRealtimeAuth = (session: Session | null) => {
+      void supabase.realtime.setAuth(session?.access_token ?? null);
+    };
+
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+      const { session } = data;
+      syncRealtimeAuth(session);
+      const user = session?.user ?? null;
       setUser(user);
       if (user) loadProfile(user.id);
       setLoading(false);
@@ -37,10 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
-      setUser(session?.user ?? null);
-      if (session?.user) loadProfile(session.user.id);
-      else setProfile(null);
-    });
+        syncRealtimeAuth(session);
+        setUser(session?.user ?? null);
+        if (session?.user) loadProfile(session.user.id);
+        else setProfile(null);
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, [supabase, loadProfile]);

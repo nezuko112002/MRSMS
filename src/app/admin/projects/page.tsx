@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageLoader, EmptyState } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { DepartmentSelect } from '@/components/ui/department-select';
 import { formatDate } from '@/lib/utils';
 import type { Project } from '@/types';
@@ -28,14 +29,16 @@ export default function AdminProjectsPage() {
   const [saving, setSaving] = useState(false);
   const supabase = createClient();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const { data } = await supabase.from('projects').select('*').order('name');
     setProjects(data || []);
     setLoading(false);
   }, [supabase]);
 
   useEffect(() => { load(); }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), true);
 
   function openCreate() {
     setEditingId(null);

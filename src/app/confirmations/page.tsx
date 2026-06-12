@@ -10,6 +10,7 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { EmptyState, PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatDate } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 import { ClipboardCheck, CheckCircle } from 'lucide-react';
@@ -27,9 +28,9 @@ function ConfirmationsPageContent() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!profile) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
 
     const { data: releasedRows } = await supabase
       .from('material_request_items')
@@ -60,6 +61,8 @@ function ConfirmationsPageContent() {
   }, [profile, supabase]);
 
   useEffect(() => { load(); }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), !!profile);
 
   useEffect(() => {
     const confirmId = searchParams.get('confirm');

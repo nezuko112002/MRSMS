@@ -407,3 +407,23 @@ create trigger trg_projects_updated_at    before update on projects            f
 create trigger trg_inventory_updated_at   before update on inventory            for each row execute procedure update_updated_at();
 create trigger trg_requests_updated_at    before update on material_requests    for each row execute procedure update_updated_at();
 create trigger trg_items_updated_at       before update on material_request_items for each row execute procedure update_updated_at();
+
+-- ============================================================
+-- REALTIME (instant live updates in the app)
+-- ============================================================
+alter table material_requests replica identity full;
+alter table material_request_items replica identity full;
+alter table approval_history replica identity full;
+alter table material_release_slips replica identity full;
+alter table cost_records replica identity full;
+alter table profiles replica identity full;
+alter table projects replica identity full;
+alter table inventory replica identity full;
+alter publication supabase_realtime add table material_requests;
+alter publication supabase_realtime add table material_request_items;
+alter publication supabase_realtime add table approval_history;
+alter publication supabase_realtime add table material_release_slips;
+alter publication supabase_realtime add table cost_records;
+alter publication supabase_realtime add table profiles;
+alter publication supabase_realtime add table projects;
+alter publication supabase_realtime add table inventory;

@@ -11,6 +11,7 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { EmptyState, PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatDate, canCreateRequest, getDisplayRequestStatus } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem, RequestStatus } from '@/types';
 
@@ -40,9 +41,9 @@ function RequestsPageContent() {
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all');
   const supabase = createClient();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!profile) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     let q = supabase
       .from('material_requests')
       .select('*, profile:profiles(full_name, role), items:material_request_items(status)')
@@ -56,6 +57,8 @@ function RequestsPageContent() {
   }, [profile, supabase]);
 
   useEffect(() => { load(); }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), !!profile);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {

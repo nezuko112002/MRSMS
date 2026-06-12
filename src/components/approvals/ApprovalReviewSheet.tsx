@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Sheet,
   SheetContent,
@@ -20,6 +21,7 @@ import type { MaterialRequest, MaterialRequestItem, ApprovalHistory } from '@/ty
 import { CheckCircle, XCircle, AlertCircle, Info, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
+import { notifyLiveDataChange } from '@/lib/liveData';
 
 interface ItemReview {
   id: string;
@@ -57,9 +59,9 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
     setSubmitting(false);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!requestId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     const [reqRes, itemsRes, histRes] = await Promise.all([
       supabase.from('material_requests').select('*, profile:profiles(full_name, department)').eq('id', requestId).single(),
       supabase.from('material_request_items').select('*').eq('request_id', requestId).order('sort_order'),
@@ -85,6 +87,10 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
       reset();
     }
   }, [open, requestId, load, reset]);
+
+  useAutoRefresh(() => {
+    if (open && requestId) void load({ silent: true });
+  }, open && !!requestId);
 
   function updateReview(id: string, field: keyof ItemReview, value: ItemReview[keyof ItemReview]) {
     setReviews(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
@@ -197,6 +203,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
           : newStatus === 'pending'
             ? 'Review saved — request remains pending'
             : `Request ${newStatus.replace('_', ' ')}`;
+      notifyLiveDataChange(supabase);
       toast.success(successMessage);
       onOpenChange(false);
       onSuccess?.();

@@ -12,6 +12,7 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatDate, formatCurrency, canCreateRequest } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 
@@ -32,9 +33,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (opts?: { silent?: boolean }) => {
     if (!profile) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       // Recent requests
       let reqQuery = supabase
@@ -76,6 +77,8 @@ export default function DashboardPage() {
   }, [profile, supabase]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  useAutoRefresh(() => loadDashboard({ silent: true }), !!profile);
 
   const { page, setPage, paginatedItems, totalPages, totalItems, from, to } = usePagination(requests);
 

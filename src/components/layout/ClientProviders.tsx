@@ -6,9 +6,11 @@ import { RequestDetailSheetProvider } from '@/hooks/useRequestDetailSheet';
 import { WarehouseReleaseSheetProvider } from '@/hooks/useWarehouseReleaseSheet';
 import { ConfirmationReceiptSheetProvider } from '@/hooks/useConfirmationReceiptSheet';
 import { NotificationsSheetProvider } from '@/hooks/useNotificationsSheet';
+import { LiveDataProvider } from '@/hooks/LiveDataProvider';
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
+    <LiveDataProvider>
     <ApprovalReviewSheetProvider>
       <RequestDetailSheetProvider>
         <WarehouseReleaseSheetProvider>
@@ -22,5 +24,6 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         </WarehouseReleaseSheetProvider>
       </RequestDetailSheetProvider>
     </ApprovalReviewSheetProvider>
+    </LiveDataProvider>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Select,
   SelectContent,
@@ -32,21 +33,20 @@ export function ProjectSelect({
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      let query = supabase.from('projects').select('*').order('name');
-      if (activeOnly) query = query.eq('is_active', true);
-      const { data } = await query;
-      if (!cancelled) {
-        setProjects(data || []);
-        setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    let query = supabase.from('projects').select('*').order('name');
+    if (activeOnly) query = query.eq('is_active', true);
+    const { data } = await query;
+    setProjects(data || []);
+    setLoading(false);
   }, [supabase, activeOnly]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), true);
 
   return (
     <Select

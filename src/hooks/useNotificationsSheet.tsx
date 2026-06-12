@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { NotificationsSheet } from '@/components/notifications/NotificationsSheet';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   type HistoryWithRequest,
   getLastReadAt,
@@ -54,18 +55,7 @@ export function NotificationsSheetProvider({ children }: { children: React.React
     refreshNotifications();
   }, [refreshNotifications]);
 
-  useEffect(() => {
-    if (!profile) return;
-
-    const interval = window.setInterval(refreshNotifications, 60_000);
-    const onFocus = () => refreshNotifications();
-    window.addEventListener('focus', onFocus);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [profile, refreshNotifications]);
+  useAutoRefresh(refreshNotifications, !!profile);
 
   const openNotifications = useCallback(() => {
     setOpen(true);

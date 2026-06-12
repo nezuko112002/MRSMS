@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Sheet,
   SheetContent,
@@ -19,6 +20,7 @@ import type { MaterialRequest, MaterialRequestItem } from '@/types';
 import { ClipboardCheck, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
+import { notifyLiveDataChange } from '@/lib/liveData';
 
 interface ConfirmationReceiptSheetProps {
   open: boolean;
@@ -47,9 +49,9 @@ export function ConfirmationReceiptSheet({ open, requestId, onOpenChange, onSucc
     setSubmitting(false);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!requestId || !profile) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
 
     const [reqRes, itemsRes] = await Promise.all([
       supabase.from('material_requests').select('*').eq('id', requestId).single(),
@@ -82,6 +84,10 @@ export function ConfirmationReceiptSheet({ open, requestId, onOpenChange, onSucc
       reset();
     }
   }, [open, requestId, load, reset]);
+
+  useAutoRefresh(() => {
+    if (open && requestId) void load({ silent: true });
+  }, open && !!requestId);
 
   async function handleConfirm() {
     if (!requestId || !request || !profile) return;
@@ -118,6 +124,7 @@ export function ConfirmationReceiptSheet({ open, requestId, onOpenChange, onSucc
         }),
       });
 
+      notifyLiveDataChange(supabase);
       toast.success('Receipt confirmed!');
       onOpenChange(false);
       onSuccess?.();

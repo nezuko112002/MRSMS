@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Sheet,
   SheetContent,
@@ -31,6 +32,7 @@ import {
   markWarehouseDeferred,
   clearWarehouseDeferredMarker,
 } from '@/lib/warehouseDeferred';
+import { notifyLiveDataChange } from '@/lib/liveData';
 
 interface ReleaseItem {
   item: MaterialRequestItem;
@@ -111,9 +113,9 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
     setSubmitting(false);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!requestId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     const [reqRes, itemsRes] = await Promise.all([
       supabase.from('material_requests').select('*, profile:profiles(full_name)').eq('id', requestId).single(),
       supabase.from('material_request_items').select('*').eq('request_id', requestId).order('sort_order'),
@@ -134,6 +136,10 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
       reset();
     }
   }, [open, requestId, load, reset]);
+
+  useAutoRefresh(() => {
+    if (open && requestId) void load({ silent: true });
+  }, open && !!requestId);
 
   function saveDraftSnapshot(items: ReleaseItem[], draftNotes: string) {
     if (!requestId) return;
@@ -208,6 +214,7 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
       try {
         await persistPendingDeferrals(releaseItems);
         clearDraft(request.id);
+        notifyLiveDataChange(supabase);
         toast.success('Items remain in queue for later release');
         onOpenChange(false);
         onSuccess?.();
@@ -343,6 +350,7 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
           : `Materials released — ${slipNo}`
         : 'Rejected items updated';
       clearDraft(request.id);
+      notifyLiveDataChange(supabase);
       toast.success(successMessage);
       onOpenChange(false);
       onSuccess?.();

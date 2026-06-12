@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useApprovalReviewSheet } from '@/hooks/useApprovalReviewSheet';
 import {
   Sheet,
@@ -23,6 +24,7 @@ import { User, FileText, Printer, Send, Trash2, Plus, Save, Package, Clock } fro
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
 import { clearWarehouseDeferredMarker } from '@/lib/warehouseDeferred';
+import { notifyLiveDataChange } from '@/lib/liveData';
 
 interface RequestDetailSheetProps {
   open: boolean;
@@ -52,9 +54,9 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
     setSubmitting(false);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!requestId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     const [reqRes, itemsRes, histRes] = await Promise.all([
       supabase.from('material_requests').select('*, profile:profiles(full_name, department)').eq('id', requestId).single(),
       supabase.from('material_request_items').select('*').eq('request_id', requestId).order('sort_order'),
@@ -86,6 +88,10 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
       reset();
     }
   }, [open, requestId, load, reset]);
+
+  useAutoRefresh(() => {
+    if (open && requestId) void load({ silent: true });
+  }, open && !!requestId);
 
   function validateEditItems(formItems: RequestFormItem[]): boolean {
     if (formItems.length === 0) {
@@ -195,6 +201,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
           itemRefs: formatItemRefs(savedItems.map(i => ({ sort_order: i.sort_order, description: i.description }))),
         }),
       });
+      notifyLiveDataChange(supabase);
       toast.success('Draft saved!');
       onUpdated?.();
     } catch (err: unknown) {
@@ -223,6 +230,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
           itemRefs: formatItemRefs(savedItems.map(i => ({ sort_order: i.sort_order, description: i.description }))),
         }),
       });
+      notifyLiveDataChange(supabase);
       toast.success('Request submitted for approval!');
       await load();
       onUpdated?.();
@@ -249,6 +257,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
     try {
       const { error } = await supabase.from('material_requests').delete().eq('id', request.id);
       if (error) throw error;
+      notifyLiveDataChange(supabase);
       toast.success('Request deleted');
       onOpenChange(false);
       onUpdated?.();

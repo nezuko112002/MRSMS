@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageLoader, EmptyState } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils';
 import type { CostRecord } from '@/types';
 import { DollarSign, TrendingUp, FileText } from 'lucide-react';
@@ -23,8 +24,8 @@ export default function CostsPage() {
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const supabase = createClient();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const { data } = await supabase
       .from('cost_records')
       .select('*')
@@ -45,6 +46,8 @@ export default function CostsPage() {
   }, [supabase]);
 
   useEffect(() => { load(); }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), true);
 
   const filteredRecords = selectedProject === 'all'
     ? records

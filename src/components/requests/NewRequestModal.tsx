@@ -17,6 +17,7 @@ import { ProjectSelect } from '@/components/ui/project-select';
 import { UnitSelect } from '@/components/ui/unit-select';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
+import { notifyLiveDataChange } from '@/lib/liveData';
 import { formatSupabaseError } from '@/lib/utils';
 import type { RequestFormItem } from '@/types';
 import { Plus, Trash2, Save, Send, Package } from 'lucide-react';
@@ -153,6 +154,7 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
       });
       if (historyErr) throw historyErr;
 
+      notifyLiveDataChange(supabase);
       toast.success(status === 'draft' ? 'Draft saved!' : 'Request submitted for approval!');
       onOpenChange(false);
 

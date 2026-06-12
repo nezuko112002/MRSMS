@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Sheet,
   SheetContent,
@@ -66,9 +67,9 @@ export function NotificationsSheet({ open, onOpenChange, onRead }: Notifications
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!profile) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
 
     const { data } = await supabase
       .from('approval_history')
@@ -94,6 +95,10 @@ export function NotificationsSheet({ open, onOpenChange, onRead }: Notifications
   useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  useAutoRefresh(() => {
+    if (open) void load({ silent: true });
+  }, open && !!profile);
 
   useEffect(() => {
     if (!open || !profile) return;

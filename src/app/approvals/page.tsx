@@ -11,6 +11,7 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { EmptyState, PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatDate } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 
@@ -31,8 +32,8 @@ function ApprovalsPageContent() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
 
     const { data: pendingItemRows } = await supabase
       .from('material_request_items')
@@ -69,6 +70,8 @@ function ApprovalsPageContent() {
   }, [supabase]);
 
   useEffect(() => { if (profile) load(); }, [profile, load]);
+
+  useAutoRefresh(() => { if (profile) load({ silent: true }); }, !!profile);
 
   useEffect(() => {
     const reviewId = searchParams.get('review');

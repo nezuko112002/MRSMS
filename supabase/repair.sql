@@ -326,3 +326,31 @@ create policy "Finance and admin can view costs" on public.cost_records
   );
 create policy "System can insert costs" on public.cost_records
   for insert with check (auth.role() = 'authenticated');
+
+-- ---------------------------------------------------------------------------
+-- Realtime (required for instant cross-user updates in the app)
+-- Or enable the same tables in Supabase Dashboard → Database → Replication.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  tbl text;
+begin
+  foreach tbl in array array[
+    'material_requests',
+    'material_request_items',
+    'approval_history',
+    'material_release_slips',
+    'cost_records',
+    'profiles',
+    'projects',
+    'inventory'
+  ] loop
+    execute format('alter table public.%I replica identity full', tbl);
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', tbl);
+    end if;
+  end loop;
+end $$;
