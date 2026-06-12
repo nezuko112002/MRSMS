@@ -1,6 +1,7 @@
 -- ============================================================
--- Material Request System — Supabase Schema
--- Run this entire file in Supabase SQL Editor
+-- MRSMS — Full schema reference (fresh Supabase project only)
+-- Do NOT run on a live database that already has data.
+-- For existing projects use repair.sql instead.
 -- ============================================================
 
 -- Enable UUID extension
@@ -13,7 +14,6 @@ create type user_role as enum ('requestor', 'manager', 'warehouse', 'finance', '
 create type request_status as enum ('draft', 'pending', 'approved', 'partially_approved', 'rejected', 'released', 'partially_released', 'confirmed', 'completed');
 create type item_status as enum ('pending', 'approved', 'rejected', 'released', 'received');
 create type release_status as enum ('complete', 'partial');
-create type condition_status as enum ('good', 'damaged', 'incomplete');
 
 -- ============================================================
 -- PROFILES (extends Supabase auth.users)
@@ -103,6 +103,8 @@ alter table inventory enable row level security;
 create policy "Authenticated users can view inventory" on inventory for select using (auth.role() = 'authenticated');
 create policy "Warehouse and admin can manage inventory" on inventory for all using (
   public.has_role(array['warehouse', 'admin']::user_role[])
+) with check (
+  public.has_role(array['warehouse', 'admin']::user_role[])
 );
 
 -- ============================================================
@@ -147,11 +149,18 @@ create policy "Requestors see own requests" on material_requests for select usin
   requested_by = auth.uid()
   or public.has_role(array['manager', 'warehouse', 'finance', 'admin']::user_role[])
 );
-create policy "Requestors can insert" on material_requests for insert with check (requested_by = auth.uid());
-create policy "Requestors can update own draft" on material_requests for update using (
-  (requested_by = auth.uid() and status = 'draft')
-  or public.has_role(array['manager', 'warehouse', 'admin']::user_role[])
-);
+create policy "Requestors can insert" on material_requests
+  for insert to authenticated with check (requested_by = auth.uid());
+create policy "Requestors can update own draft" on material_requests
+  for update
+  using (
+    (requested_by = auth.uid() and status = 'draft')
+    or public.has_role(array['manager', 'warehouse', 'admin']::user_role[])
+  )
+  with check (
+    (requested_by = auth.uid() and status in ('draft', 'pending'))
+    or public.has_role(array['manager', 'warehouse', 'admin']::user_role[])
+  );
 create policy "Requestors can delete own cancellable requests" on material_requests for delete using (
   requested_by = auth.uid()
   and status in ('draft', 'pending', 'rejected')
@@ -161,19 +170,30 @@ create policy "Admins can delete cancellable requests" on material_requests for 
   and status in ('draft', 'pending', 'rejected')
 );
 
--- Auto-generate request_no
+-- Auto-generate request_no (atomic per-year counter)
+create table if not exists request_no_counters (
+  year       int primary key,
+  last_value int not null default 0
+);
+
+alter table request_no_counters disable row level security;
+
 create or replace function generate_request_no()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare
   year_part text := to_char(now(), 'YYYY');
+  year_int  int := cast(year_part as integer);
   seq_no    int;
 begin
-  select coalesce(max(
-    cast(split_part(request_no, '-', 3) as integer)
-  ), 0) + 1
-  into seq_no
-  from material_requests
-  where request_no like 'MR-' || year_part || '-%';
+  if new.request_no is not null and btrim(new.request_no) <> '' then
+    return new;
+  end if;
+
+  insert into request_no_counters (year, last_value)
+  values (year_int, 1)
+  on conflict (year) do update
+  set last_value = request_no_counters.last_value + 1
+  returning last_value into seq_no;
 
   new.request_no := 'MR-' || year_part || '-' || lpad(seq_no::text, 4, '0');
   return new;
@@ -283,6 +303,8 @@ create table material_release_slips (
 alter table material_release_slips enable row level security;
 create policy "Release slips visible to authenticated" on material_release_slips for select using (auth.role() = 'authenticated');
 create policy "Warehouse can manage release slips" on material_release_slips for all using (
+  public.has_role(array['warehouse', 'admin']::user_role[])
+) with check (
   public.has_role(array['warehouse', 'admin']::user_role[])
 );
 

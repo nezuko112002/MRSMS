@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useId } from 'react';
+import { useCallback, useEffect, useState, useId, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,7 @@ import { ProjectSelect } from '@/components/ui/project-select';
 import { UnitSelect } from '@/components/ui/unit-select';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
+import { formatSupabaseError } from '@/lib/utils';
 import type { RequestFormItem } from '@/types';
 import { Plus, Trash2, Save, Send, Package } from 'lucide-react';
 
@@ -31,11 +32,12 @@ interface NewRequestModalProps {
 }
 
 export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestModalProps) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const supabase = createClient();
   const firstItemId = useId();
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   const [projectId, setProjectId] = useState('');
   const [items, setItems] = useState<RequestFormItem[]>(() => [createEmptyItem(firstItemId)]);
@@ -67,7 +69,16 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
   }
 
   async function handleSubmit(status: 'draft' | 'pending') {
-    if (!profile) return;
+    if (submittingRef.current) return;
+    const requestorId = user?.id ?? profile?.id;
+    if (!requestorId) {
+      toast.error('You must be signed in to submit a request.');
+      return;
+    }
+    if (!profile) {
+      toast.error('Your profile is missing. Ask an admin to verify your account in Supabase.');
+      return;
+    }
     if (!projectId) {
       toast.error('Please select a project');
       return;
@@ -80,6 +91,7 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     try {
       const { data: project, error: projectErr } = await supabase
@@ -91,16 +103,20 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
 
       if (projectErr || !project) throw new Error('Selected project is not available');
 
-      const { data: req, error } = await supabase.from('material_requests').insert({
-        project_id: projectId,
-        project_name: project.name,
-        department: project.department,
-        requested_by: profile.id,
-        purpose: null,
-        required_date: null,
-        notes: null,
-        status,
-      }).select().single();
+      const { data: req, error } = await supabase
+        .from('material_requests')
+        .insert({
+          project_id: projectId,
+          project_name: project.name,
+          department: project.department,
+          requested_by: requestorId,
+          purpose: null,
+          required_date: null,
+          notes: null,
+          status: 'draft',
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
@@ -117,16 +133,25 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
       const { error: itemErr } = await supabase.from('material_request_items').insert(itemRows);
       if (itemErr) throw itemErr;
 
+      if (status === 'pending') {
+        const { error: submitErr } = await supabase
+          .from('material_requests')
+          .update({ status: 'pending' })
+          .eq('id', req.id);
+        if (submitErr) throw submitErr;
+      }
+
       const itemRefs = formatItemRefs(
         items.map((item, i) => ({ sort_order: i, description: item.description.trim() }))
       );
-      await supabase.from('approval_history').insert({
+      const { error: historyErr } = await supabase.from('approval_history').insert({
         request_id: req.id,
         action_by: profile.id,
         action: status === 'draft' ? 'saved_draft' : 'submitted',
         to_status: status,
         comments: status === 'pending' ? buildHistoryComments({ itemRefs }) : null,
       });
+      if (historyErr) throw historyErr;
 
       toast.success(status === 'draft' ? 'Draft saved!' : 'Request submitted for approval!');
       onOpenChange(false);
@@ -137,8 +162,9 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
         router.push(`/requests/${req.id}`);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+      toast.error(formatSupabaseError(err));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }

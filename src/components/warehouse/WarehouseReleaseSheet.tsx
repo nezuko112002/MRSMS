@@ -307,7 +307,7 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
 
       const { data: allItems } = await supabase
         .from('material_request_items')
-        .select('status')
+        .select('status, released_qty, approved_qty, requested_qty, release_deferred, purpose')
         .eq('request_id', request.id);
 
       const newStatus = computeRequestStatusFromItems(allItems || []);

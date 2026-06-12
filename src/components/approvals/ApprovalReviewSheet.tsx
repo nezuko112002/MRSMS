@@ -143,14 +143,21 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
         }).eq('id', item.id);
       }
 
-      const finalStatuses = items.map(item => {
+      const finalItems = items.map(item => {
         const u = decidedItemIds.has(item.id) ? reviewById.get(item.id) : undefined;
-        return u?.status ?? item.status;
+        return {
+          status: u?.status ?? item.status,
+          purpose: item.purpose,
+          approved_qty: u?.approved_qty ?? item.approved_qty,
+          released_qty: item.released_qty,
+          requested_qty: item.requested_qty,
+          release_deferred: item.release_deferred,
+        };
       });
 
       const newStatus: MaterialRequest['status'] = rejectAll
         ? 'rejected'
-        : computeRequestStatusFromItems(finalStatuses.map(status => ({ status })));
+        : computeRequestStatusFromItems(finalItems);
 
       await supabase.from('material_requests').update({ status: newStatus }).eq('id', request.id);
       const reviewedItems = items
@@ -182,7 +189,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
         }),
       });
 
-      const stillPending = finalStatuses.filter(s => s === 'pending').length;
+      const stillPending = finalItems.filter(item => item.status === 'pending').length;
       const successMessage = rejectAll
         ? 'Request rejected'
         : newStatus === 'partially_approved' && stillPending > 0

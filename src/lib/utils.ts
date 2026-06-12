@@ -29,8 +29,33 @@ export function itemNeedsMoreRelease(item: ItemStatusFields): boolean {
   return getRemainingReleaseQty(item) > 0;
 }
 
+export function itemHasReleaseActivity(
+  item: Pick<MaterialRequestItem, 'status' | 'released_qty'>
+): boolean {
+  if (item.status === 'released' || item.status === 'received') return true;
+  return (Number(item.released_qty ?? 0) || 0) > 0;
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function formatSupabaseError(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const e = err as { message: string; details?: string; code?: string };
+    if (e.code === '23505') {
+      return 'Request number conflict. Ask an admin to run supabase/repair.sql in Supabase.';
+    }
+    if (e.code === '23503') {
+      return 'Your account or project is not set up correctly. Contact your administrator.';
+    }
+    if (e.code === '42501' || e.message.toLowerCase().includes('row-level security')) {
+      return 'Permission denied. Ask an admin to run supabase/repair.sql in Supabase SQL Editor.';
+    }
+    return [e.message, e.details].filter(Boolean).join(' — ');
+  }
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong';
 }
 
 export function formatDate(date: string | Date | null | undefined) {
@@ -150,7 +175,7 @@ export function summarizeItemStatuses(
 
 export function getDisplayRequestStatus(
   request: Pick<MaterialRequest, 'status'>,
-  items?: Pick<MaterialRequestItem, 'status'>[] | null
+  items?: ItemStatusFields[] | null
 ): RequestStatus {
   // Draft is a request-level state before submission; item rows still default to pending.
   if (request.status === 'draft') return 'draft';
@@ -197,37 +222,43 @@ export function hasMixedItemProgress(summary: ItemStatusSummary): boolean {
 }
 
 export function computeRequestStatusFromItems(
-  items: Pick<MaterialRequestItem, 'status'>[]
+  items: ItemStatusFields[]
 ): RequestStatus {
   if (items.length === 0) return 'pending';
 
   const pending = items.filter(i => i.status === 'pending').length;
-  const approved = items.filter(i => i.status === 'approved').length;
   const rejected = items.filter(i => i.status === 'rejected').length;
   const released = items.filter(i => i.status === 'released').length;
   const received = items.filter(i => i.status === 'received').length;
   const total = items.length;
   const active = total - rejected;
+  const hasReleaseActivity = items.some(itemHasReleaseActivity);
+  const needsMoreRelease = items.some(itemNeedsMoreRelease);
 
   if (pending > 0) {
-    if (released > 0 || received > 0) return 'partially_released';
-    if (approved > 0) return 'partially_approved';
+    if (hasReleaseActivity) return 'partially_released';
+    if (items.some(i => i.status === 'approved')) return 'partially_approved';
     return 'pending';
   }
 
-  if (approved > 0) {
-    if (released > 0 || received > 0) return 'partially_released';
-    if (approved === active) return 'approved';
-    return 'partially_approved';
-  }
+  if (needsMoreRelease && hasReleaseActivity) return 'partially_released';
+
+  const awaitingFirstRelease = items.filter(
+    i => i.status === 'approved' && !itemHasReleaseActivity(i)
+  ).length;
+  if (awaitingFirstRelease === active) return 'approved';
 
   if (rejected === total) return 'rejected';
 
   if (received === active) return active === total ? 'completed' : 'confirmed';
   if (released === active) return 'released';
-  if (received > 0 && released > 0) return 'partially_released';
+  if (received > 0 && (released > 0 || hasReleaseActivity)) return 'partially_released';
   if (received > 0) return 'confirmed';
-  if (released > 0) return 'released';
+  if (released > 0 || hasReleaseActivity) {
+    return needsMoreRelease ? 'partially_released' : 'released';
+  }
+
+  if (items.some(i => i.status === 'approved')) return 'approved';
 
   return 'partially_approved';
 }

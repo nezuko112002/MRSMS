@@ -10,7 +10,7 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { EmptyState, PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
-import { formatDate, itemNeedsMoreRelease } from '@/lib/utils';
+import { formatDate, itemHasReleaseActivity, itemNeedsMoreRelease } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 
 type RequestWithItems = MaterialRequest & {
@@ -54,26 +54,24 @@ function WarehousePageContent() {
   const load = useCallback(async () => {
     setLoading(true);
 
-    const [readyRes, relRes] = await Promise.all([
-      supabase.from('material_requests')
-        .select('*, profile:profiles(full_name), items:material_request_items(*)')
-        .in('status', ['approved', 'partially_approved', 'partially_released', 'released'])
-        .order('updated_at'),
-      supabase.from('material_requests')
-        .select('*, profile:profiles(full_name), items:material_request_items(*)')
-        .in('status', ['released', 'partially_released', 'confirmed', 'completed'])
-        .order('updated_at', { ascending: false }),
-    ]);
+    const { data, error } = await supabase.from('material_requests')
+      .select('*, profile:profiles(full_name), items:material_request_items(*)')
+      .in('status', ['approved', 'partially_approved', 'partially_released', 'released', 'confirmed', 'completed'])
+      .order('updated_at', { ascending: false });
 
-    if (readyRes.error) console.error('Warehouse ready queue:', readyRes.error.message);
-    if (relRes.error) console.error('Warehouse processed:', relRes.error.message);
+    if (error) console.error('Warehouse load:', error.message);
 
-    const readyRequests = (readyRes.data ?? [])
-      .map((req: RequestWithItems) => normalizeRequestItems(req))
-      .filter((req: RequestWithItems) => req.items?.some((item) => itemNeedsMoreRelease(item)));
+    const normalized = (data ?? []).map((req: RequestWithItems) => normalizeRequestItems(req));
 
-    const processedRequests = (relRes.data ?? [])
-      .map((req: RequestWithItems) => normalizeRequestItems(req));
+    const readyRequests = normalized
+      .filter((req: RequestWithItems) => req.items?.some(item => itemNeedsMoreRelease(item)))
+      .sort((a: RequestWithItems, b: RequestWithItems) =>
+        new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
+      );
+
+    const processedRequests = normalized.filter((req: RequestWithItems) =>
+      req.items?.some(item => itemHasReleaseActivity(item))
+    );
 
     setPending(readyRequests);
     setReleased(processedRequests);
