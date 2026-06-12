@@ -274,7 +274,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
                           <div>
                             <span className="text-xs text-gray-400 font-mono mr-2">#{i + 1}</span>
                             <span className="font-medium text-gray-800 dark:text-gray-200">{item.description}</span>
-                            {item.remarks && <p className="text-xs text-gray-400 mt-0.5 italic">{item.remarks}</p>}
+                            {item.purpose && <p className="text-xs text-gray-400 mt-0.5 italic">{item.purpose}</p>}
                           </div>
                           <div className="text-right flex-shrink-0">
                             <p className="text-xs text-gray-400">Requested</p>
@@ -361,7 +361,7 @@ export function ApprovalReviewSheet({ open, requestId, onOpenChange, onSuccess }
 
                         {!canEditItem(item) && (
                           <div className="flex flex-wrap items-center gap-4">
-                            <ItemStatusBadge status={item.status} />
+                            <ItemStatusBadge item={item} />
                             {item.status === 'approved' && item.approved_qty != null && (
                               <div>
                                 <p className="text-xs text-gray-400">Approved Qty</p>

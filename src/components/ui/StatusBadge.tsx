@@ -4,6 +4,7 @@ import {
   ITEM_STATUS_CONFIG,
   ROLE_CONFIG,
   getDisplayRequestStatus,
+  getDisplayItemStatus,
   summarizeItemStatuses,
   getItemProgressBadges,
 } from '@/lib/utils';
@@ -17,7 +18,7 @@ export function RequestStatusBadge({ status }: { status: RequestStatus }) {
 export function ItemProgressBadges({
   items,
 }: {
-  items?: Pick<MaterialRequestItem, 'status'>[] | null;
+  items?: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'>[] | null;
 }) {
   if (!items?.length) return <span className="text-xs text-gray-500">—</span>;
 
@@ -40,14 +41,19 @@ export function RequestStatusWithItems({
   items,
 }: {
   request: Pick<MaterialRequest, 'status'>;
-  items?: Pick<MaterialRequestItem, 'status'>[] | null;
+  items?: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'>[] | null;
 }) {
   const displayStatus = getDisplayRequestStatus(request, items);
   return <RequestStatusBadge status={displayStatus} />;
 }
 
-export function ItemStatusBadge({ status }: { status: ItemStatus }) {
-  const cfg = ITEM_STATUS_CONFIG[status];
+export function ItemStatusBadge({
+  item,
+}: {
+  item: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'>;
+}) {
+  const displayStatus = getDisplayItemStatus(item);
+  const cfg = ITEM_STATUS_CONFIG[displayStatus];
   return <span className={cn('badge', cfg.color)}>{cfg.label}</span>;
 }
 

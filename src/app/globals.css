@@ -90,6 +90,17 @@ body.dark-mode, .dark body {
            backdrop-blur-sm transition-all duration-200;
   }
 
+  .glass-input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .glass-input[type='number']::-webkit-outer-spin-button,
+  .glass-input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   .glass-select {
     @apply glass-input appearance-none cursor-pointer;
   }
@@ -205,4 +216,16 @@ body.dark-mode, .dark body {
   .section-label {
     @apply text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500;
   }
+}
+
+/* Numeric inputs: plain text field (no spinner arrows) */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

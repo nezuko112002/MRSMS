@@ -22,6 +22,7 @@ import type { MaterialRequest, MaterialRequestItem, ApprovalHistory, RequestForm
 import { User, FileText, Printer, Send, Trash2, Plus, Save, Package, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatItemRefs, buildHistoryComments } from '@/lib/historyComments';
+import { clearWarehouseDeferredMarker } from '@/lib/warehouseDeferred';
 
 interface RequestDetailSheetProps {
   open: boolean;
@@ -72,7 +73,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
       description: item.description,
       unit: item.unit,
       requested_qty: item.requested_qty,
-      remarks: item.remarks || '',
+      purpose: item.purpose || '',
     })));
     setHistory(histRes.data || []);
     setLoading(false);
@@ -92,10 +93,10 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
       return false;
     }
     const invalid = formItems.filter(
-      i => !i.description.trim() || !i.requested_qty || Number(i.requested_qty) <= 0
+      i => !i.description.trim() || !i.purpose.trim() || !i.requested_qty || Number(i.requested_qty) <= 0
     );
     if (invalid.length > 0) {
-      toast.error('All items need a description and valid quantity');
+      toast.error('All items need a description, purpose, and valid quantity');
       return false;
     }
     return true;
@@ -107,7 +108,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
       description: '',
       unit: 'Bag',
       requested_qty: '',
-      remarks: '',
+      purpose: '',
     }]);
   }
 
@@ -142,7 +143,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
         description: row.description.trim(),
         unit: row.unit,
         requested_qty: Number(row.requested_qty),
-        remarks: row.remarks.trim() || null,
+        purpose: row.purpose.trim(),
         sort_order: i,
       };
 
@@ -182,7 +183,7 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
         description: item.description,
         unit: item.unit,
         requested_qty: item.requested_qty,
-        remarks: item.remarks || '',
+        purpose: item.purpose || '',
       })));
       await supabase.from('approval_history').insert({
         request_id: request.id,
@@ -369,10 +370,11 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
                         <div className="col-span-12 md:col-span-2">
                           <input
                             type="text"
-                            value={item.remarks}
-                            onChange={e => updateItem(item.id, 'remarks', e.target.value)}
+                            value={item.purpose}
+                            onChange={e => updateItem(item.id, 'purpose', e.target.value)}
                             className="glass-input text-xs"
-                            placeholder="Note"
+                            placeholder="Purpose *"
+                            required
                           />
                         </div>
                         <div className="hidden md:flex col-span-1 items-center justify-center">
@@ -396,7 +398,9 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {items.map((item, i) => (
+                    {items.map((item, i) => {
+                      const displayPurpose = clearWarehouseDeferredMarker(item.purpose);
+                      return (
                       <div
                         key={item.id}
                         className="p-3 rounded-xl bg-white/30 dark:bg-white/5 border border-white/20 dark:border-white/10"
@@ -405,12 +409,14 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
                           <div className="min-w-0">
                             <span className="text-xs text-gray-400 font-mono mr-1">#{i + 1}</span>
                             <span className="font-medium text-gray-800 dark:text-gray-200 text-sm">{item.description}</span>
-                            {item.remarks && <p className="text-xs text-gray-400 italic mt-0.5">{item.remarks}</p>}
+                            {displayPurpose && (
+                              <p className="text-xs text-gray-400 italic mt-0.5">{displayPurpose}</p>
+                            )}
                             {item.reject_reason && (
                               <p className="text-xs text-red-400 mt-0.5">Rejected: {item.reject_reason}</p>
                             )}
                           </div>
-                          <ItemStatusBadge status={item.status} />
+                          <ItemStatusBadge item={item} />
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                           <div>
@@ -435,7 +441,8 @@ export function RequestDetailSheet({ open, requestId, onOpenChange, onUpdated }:
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </div>

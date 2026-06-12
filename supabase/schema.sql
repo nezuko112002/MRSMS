@@ -197,7 +197,7 @@ create table material_request_items (
   approved_qty  numeric(12,2),
   released_qty  numeric(12,2),
   received_qty  numeric(12,2),
-  remarks       text,
+  purpose       text,
   reject_reason text,
   release_deferred boolean not null default false,
   status        item_status not null default 'pending',

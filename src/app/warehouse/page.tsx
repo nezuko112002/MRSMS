@@ -10,14 +10,36 @@ import { RequestStatusWithItems, ItemProgressBadges } from '@/components/ui/Stat
 import { EmptyState, PageLoader } from '@/components/ui/LoadingSpinner';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
-import { formatDate } from '@/lib/utils';
+import { formatDate, itemNeedsMoreRelease } from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 
 type RequestWithItems = MaterialRequest & {
   profile?: { full_name: string };
-  items?: Pick<MaterialRequestItem, 'status'>[];
+  items?: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'>[];
 };
 import { Warehouse, ArrowRight, Package } from 'lucide-react';
+
+function normalizeItemRow(
+  item: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'> & {
+    remarks?: string | null;
+  }
+) {
+  return {
+    ...item,
+    purpose: item.purpose ?? item.remarks ?? null,
+    approved_qty: item.approved_qty != null ? Number(item.approved_qty) : null,
+    released_qty: item.released_qty != null ? Number(item.released_qty) : null,
+    requested_qty: Number(item.requested_qty),
+  };
+}
+
+function normalizeRequestItems<T extends RequestWithItems>(req: T): T {
+  if (!req.items?.length) return req;
+  return {
+    ...req,
+    items: req.items.map(item => normalizeItemRow(item as Parameters<typeof normalizeItemRow>[0])),
+  };
+}
 
 function WarehousePageContent() {
   const { openRequestDetail } = useRequestDetailSheet();
@@ -32,32 +54,29 @@ function WarehousePageContent() {
   const load = useCallback(async () => {
     setLoading(true);
 
-    const { data: approvedItemRows } = await supabase
-      .from('material_request_items')
-      .select('request_id')
-      .eq('status', 'approved');
-
-    const readyIds = [
-      ...new Set(
-        (approvedItemRows ?? []).map((r: Pick<MaterialRequestItem, 'request_id'>) => r.request_id)
-      ),
-    ];
-
     const [readyRes, relRes] = await Promise.all([
-      readyIds.length > 0
-        ? supabase.from('material_requests')
-            .select('*, profile:profiles(full_name), items:material_request_items(status)')
-            .in('id', readyIds)
-            .order('updated_at')
-        : Promise.resolve({ data: [] as RequestWithItems[] }),
       supabase.from('material_requests')
-        .select('*, profile:profiles(full_name), items:material_request_items(status)')
+        .select('*, profile:profiles(full_name), items:material_request_items(*)')
+        .in('status', ['approved', 'partially_approved', 'partially_released', 'released'])
+        .order('updated_at'),
+      supabase.from('material_requests')
+        .select('*, profile:profiles(full_name), items:material_request_items(*)')
         .in('status', ['released', 'partially_released', 'confirmed', 'completed'])
         .order('updated_at', { ascending: false }),
     ]);
 
-    setPending(readyRes.data || []);
-    setReleased(relRes.data || []);
+    if (readyRes.error) console.error('Warehouse ready queue:', readyRes.error.message);
+    if (relRes.error) console.error('Warehouse processed:', relRes.error.message);
+
+    const readyRequests = (readyRes.data ?? [])
+      .map((req: RequestWithItems) => normalizeRequestItems(req))
+      .filter((req: RequestWithItems) => req.items?.some((item) => itemNeedsMoreRelease(item)));
+
+    const processedRequests = (relRes.data ?? [])
+      .map((req: RequestWithItems) => normalizeRequestItems(req));
+
+    setPending(readyRequests);
+    setReleased(processedRequests);
     setLoading(false);
   }, [supabase]);
 

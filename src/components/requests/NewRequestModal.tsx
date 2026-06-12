@@ -21,7 +21,7 @@ import type { RequestFormItem } from '@/types';
 import { Plus, Trash2, Save, Send, Package } from 'lucide-react';
 
 function createEmptyItem(id: string): RequestFormItem {
-  return { id, description: '', unit: 'Bag', requested_qty: '', remarks: '' };
+  return { id, description: '', unit: 'Bag', requested_qty: '', purpose: '' };
 }
 
 interface NewRequestModalProps {
@@ -73,10 +73,10 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
       return;
     }
     const invalidItems = items.filter(
-      i => !i.description.trim() || !i.requested_qty || Number(i.requested_qty) <= 0
+      i => !i.description.trim() || !i.purpose.trim() || !i.requested_qty || Number(i.requested_qty) <= 0
     );
     if (invalidItems.length > 0) {
-      toast.error('All items need a description and valid quantity');
+      toast.error('All items need a description, purpose, and valid quantity');
       return;
     }
 
@@ -110,7 +110,7 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
         description: item.description.trim(),
         unit: item.unit,
         requested_qty: Number(item.requested_qty),
-        remarks: item.remarks.trim() || null,
+        purpose: item.purpose.trim(),
         sort_order: i,
       }));
 
@@ -222,10 +222,11 @@ export function NewRequestModal({ open, onOpenChange, onSuccess }: NewRequestMod
                   <div className="col-span-12 md:col-span-2">
                     <input
                       type="text"
-                      value={item.remarks}
-                      onChange={e => updateItem(item.id, 'remarks', e.target.value)}
+                      value={item.purpose}
+                      onChange={e => updateItem(item.id, 'purpose', e.target.value)}
                       className="glass-input text-xs"
-                      placeholder="Note"
+                      placeholder="Purpose *"
+                      required
                     />
                   </div>
                   <div className="hidden md:flex col-span-1 items-center justify-center">

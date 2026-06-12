@@ -2,6 +2,32 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { RequestStatus, ItemStatus, UserRole, MaterialRequest, MaterialRequestItem, Project } from '@/types';
+import { isWarehouseDeferred } from '@/lib/warehouseDeferred';
+
+export type ItemStatusFields = Pick<
+  MaterialRequestItem,
+  'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'
+>;
+
+export function getApprovedQty(
+  item: Pick<MaterialRequestItem, 'approved_qty' | 'requested_qty'>
+): number {
+  const approved = item.approved_qty ?? item.requested_qty ?? 0;
+  return Number(approved) || 0;
+}
+
+export function getRemainingReleaseQty(item: Pick<MaterialRequestItem, 'approved_qty' | 'released_qty' | 'requested_qty'>): number {
+  const approved = getApprovedQty(item);
+  const released = Number(item.released_qty ?? 0) || 0;
+  return Math.max(0, approved - released);
+}
+
+export function itemNeedsMoreRelease(item: ItemStatusFields): boolean {
+  if (item.status === 'pending' || item.status === 'rejected' || item.status === 'received') {
+    return false;
+  }
+  return getRemainingReleaseQty(item) > 0;
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -95,15 +121,29 @@ export interface ItemStatusSummary {
   total: number;
 }
 
+export function getDisplayItemStatus(item: ItemStatusFields): ItemStatus {
+  if (item.status === 'approved' && isWarehouseDeferred(item)) {
+    return 'pending';
+  }
+  if (itemNeedsMoreRelease(item)) {
+    const alreadyReleased = (item.released_qty ?? 0) > 0;
+    if (alreadyReleased || isWarehouseDeferred(item)) {
+      return 'pending';
+    }
+    return 'approved';
+  }
+  return item.status;
+}
+
 export function summarizeItemStatuses(
-  items: Pick<MaterialRequestItem, 'status'>[]
+  items: ItemStatusFields[]
 ): ItemStatusSummary {
   return {
-    pending: items.filter(i => i.status === 'pending').length,
-    approved: items.filter(i => i.status === 'approved').length,
-    rejected: items.filter(i => i.status === 'rejected').length,
-    released: items.filter(i => i.status === 'released').length,
-    received: items.filter(i => i.status === 'received').length,
+    pending: items.filter(i => getDisplayItemStatus(i) === 'pending').length,
+    approved: items.filter(i => getDisplayItemStatus(i) === 'approved').length,
+    rejected: items.filter(i => getDisplayItemStatus(i) === 'rejected').length,
+    released: items.filter(i => getDisplayItemStatus(i) === 'released').length,
+    received: items.filter(i => getDisplayItemStatus(i) === 'received').length,
     total: items.length,
   };
 }

@@ -69,7 +69,7 @@ export interface MaterialRequestItem {
   approved_qty: number | null;
   released_qty: number | null;
   received_qty: number | null;
-  remarks: string | null;
+  purpose: string | null;
   reject_reason: string | null;
   release_deferred?: boolean;
   status: ItemStatus;
@@ -127,7 +127,7 @@ export interface RequestFormItem {
   description: string;
   unit: string;
   requested_qty: number | string;
-  remarks: string;
+  purpose: string;
 }
 
 export interface DashboardStats {

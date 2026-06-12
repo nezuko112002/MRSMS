@@ -14,7 +14,14 @@ import {
 } from '@/components/ui/sheet';
 import { RequestStatusBadge } from '@/components/ui/StatusBadge';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
-import { formatDate, formatNumber, computeRequestStatusFromItems } from '@/lib/utils';
+import {
+  formatDate,
+  formatNumber,
+  computeRequestStatusFromItems,
+  getApprovedQty,
+  getRemainingReleaseQty,
+  itemNeedsMoreRelease,
+} from '@/lib/utils';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
 import { Package, Truck, XCircle, Clock, AlertCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -27,7 +34,7 @@ import {
 
 interface ReleaseItem {
   item: MaterialRequestItem;
-  released_qty: number | '';
+  released_qty: number | string;
   reject_reason: string;
   action: 'release' | 'reject' | 'pending';
 }
@@ -69,9 +76,10 @@ function buildReleaseItems(
     const saved = draft?.items[item.id];
     const deferred = isWarehouseDeferred(item);
     const action = deferred ? 'pending' : (saved?.action ?? 'release');
+    const defaultReleaseQty = getRemainingReleaseQty(item);
     return {
       item,
-      released_qty: saved?.released_qty ?? item.approved_qty ?? item.requested_qty,
+      released_qty: saved?.released_qty ?? defaultReleaseQty,
       reject_reason: saved?.reject_reason ?? item.reject_reason ?? '',
       action,
     };
@@ -108,10 +116,10 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
     setLoading(true);
     const [reqRes, itemsRes] = await Promise.all([
       supabase.from('material_requests').select('*, profile:profiles(full_name)').eq('id', requestId).single(),
-      supabase.from('material_request_items').select('*').eq('request_id', requestId).in('status', ['approved']).order('sort_order'),
+      supabase.from('material_request_items').select('*').eq('request_id', requestId).order('sort_order'),
     ]);
 
-    const its = (itemsRes.data ?? []) as MaterialRequestItem[];
+    const its = ((itemsRes.data ?? []) as MaterialRequestItem[]).filter(itemNeedsMoreRelease);
     const draft = requestId ? readDraft(requestId) : null;
     setRequest(reqRes.data);
     setReleaseItems(buildReleaseItems(its, draft));
@@ -152,6 +160,18 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
     });
   }
 
+  function clampReleaseQty(raw: string, maxQty: number): number | string {
+    if (raw === '') return '';
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num <= 0) return '';
+    if (num > maxQty) return maxQty;
+    return raw;
+  }
+
+  function updateReleaseQty(itemId: string, raw: string, maxQty: number) {
+    updateEntry(itemId, 'released_qty', clampReleaseQty(raw, maxQty));
+  }
+
   function updateNotes(value: string) {
     setNotes(value);
     saveDraftSnapshot(releaseItems, value);
@@ -160,15 +180,15 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
   async function persistPendingDeferrals(entries: ReleaseItem[]) {
     for (const entry of entries) {
       if (entry.action !== 'pending') continue;
-      const remarks = markWarehouseDeferred(entry.item.remarks);
+      const purposeValue = markWarehouseDeferred(entry.item.purpose);
       const { error } = await supabase.from('material_request_items').update({
         release_deferred: true,
-        remarks,
+        purpose: purposeValue,
       }).eq('id', entry.item.id);
 
       if (error) {
         const { error: fallbackError } = await supabase.from('material_request_items').update({
-          remarks,
+          purpose: purposeValue,
         }).eq('id', entry.item.id);
         if (fallbackError) throw fallbackError;
       }
@@ -208,11 +228,14 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
     }
 
     const toRelease = releaseItems.filter(e => e.action === 'release');
-    const invalidRelease = toRelease.filter(
-      e => e.released_qty === '' || Number(e.released_qty) < 0
-    );
+    const invalidRelease = toRelease.filter(e => {
+      if (e.released_qty === '' || Number(e.released_qty) <= 0) return true;
+      const increment = Number(e.released_qty);
+      const remaining = getRemainingReleaseQty(e.item);
+      return increment > remaining;
+    });
     if (invalidRelease.length) {
-      toast.error('Please enter valid release quantities');
+      toast.error('Release qty must be between 1 and the remaining quantity');
       return;
     }
 
@@ -225,7 +248,11 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
           request_id: request.id,
           released_by: profile.id,
           notes: notes.trim() || null,
-          status: toRelease.some(c => Number(c.released_qty) < (c.item.approved_qty || c.item.requested_qty))
+          status: toRelease.some(c => {
+            const priorReleased = c.item.released_qty ?? 0;
+            const newTotal = priorReleased + Number(c.released_qty);
+            return newTotal < getApprovedQty(c.item);
+          })
             ? 'partial' : 'complete',
         }).select().single();
 
@@ -233,19 +260,22 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
         slipNo = slip.slip_no;
 
         for (const entry of toRelease) {
-          const relQty = Number(entry.released_qty);
-          const remarks = clearWarehouseDeferredMarker(entry.item.remarks);
+          const approvedQty = getApprovedQty(entry.item);
+          const priorReleased = entry.item.released_qty ?? 0;
+          const relQty = priorReleased + Number(entry.released_qty);
+          const fullyReleased = relQty >= approvedQty;
+          const purposeValue = clearWarehouseDeferredMarker(entry.item.purpose);
           const { error } = await supabase.from('material_request_items').update({
             released_qty: relQty,
-            status: 'released',
+            status: fullyReleased ? 'released' : 'approved',
             release_deferred: false,
-            remarks,
+            purpose: purposeValue,
           }).eq('id', entry.item.id);
           if (error) {
             const { error: fallbackError } = await supabase.from('material_request_items').update({
               released_qty: relQty,
-              status: 'released',
-              remarks,
+              status: fullyReleased ? 'released' : 'approved',
+              purpose: purposeValue,
             }).eq('id', entry.item.id);
             if (fallbackError) throw fallbackError;
           }
@@ -254,20 +284,20 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
 
       for (const entry of releaseItems) {
         if (entry.action !== 'reject') continue;
-        const remarks = clearWarehouseDeferredMarker(entry.item.remarks);
+        const purposeValue = clearWarehouseDeferredMarker(entry.item.purpose);
         const { error } = await supabase.from('material_request_items').update({
           status: 'rejected',
           reject_reason: entry.reject_reason.trim(),
           released_qty: null,
           release_deferred: false,
-          remarks,
+          purpose: purposeValue,
         }).eq('id', entry.item.id);
         if (error) {
           const { error: fallbackError } = await supabase.from('material_request_items').update({
             status: 'rejected',
             reject_reason: entry.reject_reason.trim(),
             released_qty: null,
-            remarks,
+            purpose: purposeValue,
           }).eq('id', entry.item.id);
           if (fallbackError) throw fallbackError;
         }
@@ -390,13 +420,29 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
                 ) : (
                   <div className="space-y-3">
                     {releaseItems.map(entry => {
-                      const approvedQty = entry.item.approved_qty || entry.item.requested_qty;
+                      const approvedQty = getApprovedQty(entry.item);
+                      const alreadyReleased = entry.item.released_qty ?? 0;
+                      const remainingQty = getRemainingReleaseQty(entry.item);
                       return (
                         <div key={entry.item.id} className="p-4 rounded-xl bg-white/30 dark:bg-white/5 border border-white/20 dark:border-white/10 space-y-3">
                           <p className="font-medium text-gray-800 dark:text-gray-200">{entry.item.description}</p>
-                          <div>
-                            <p className="text-xs text-gray-400">Approved Qty</p>
-                            <p className="font-semibold text-emerald-400">{formatNumber(approvedQty)} {entry.item.unit}</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-xs text-gray-400">Approved Qty</p>
+                              <p className="font-semibold text-emerald-400">{formatNumber(approvedQty)} {entry.item.unit}</p>
+                            </div>
+                            {alreadyReleased > 0 && (
+                              <div>
+                                <p className="text-xs text-gray-400">Already Released</p>
+                                <p className="font-semibold text-violet-400">{formatNumber(alreadyReleased)} {entry.item.unit}</p>
+                              </div>
+                            )}
+                            {remainingQty > 0 && (
+                              <div>
+                                <p className="text-xs text-gray-400">Remaining</p>
+                                <p className="font-semibold text-amber-400">{formatNumber(remainingQty)} {entry.item.unit}</p>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-3">
@@ -442,14 +488,18 @@ export function WarehouseReleaseSheet({ open, requestId, onOpenChange, onSuccess
                                 <input
                                   type="number"
                                   value={entry.released_qty}
-                                  onChange={e => updateEntry(entry.item.id, 'released_qty', e.target.value === '' ? '' : Number(e.target.value))}
-                                  min="0"
-                                  max={approvedQty}
+                                  onChange={e => updateReleaseQty(entry.item.id, e.target.value, remainingQty)}
+                                  onBlur={e => updateReleaseQty(entry.item.id, e.target.value, remainingQty)}
+                                  onWheel={e => e.currentTarget.blur()}
+                                  className="glass-input text-xs w-28"
+                                  placeholder="Qty"
+                                  min="0.01"
+                                  max={remainingQty}
                                   step="0.01"
-                                  className="glass-input w-28 text-sm"
                                 />
                                 <span className="text-xs text-gray-400">{entry.item.unit}</span>
-                                {Number(entry.released_qty) < approvedQty && entry.released_qty !== '' && (
+                                <span className="text-[10px] text-gray-500">max {formatNumber(remainingQty)}</span>
+                                {Number(entry.released_qty) > 0 && Number(entry.released_qty) < remainingQty && entry.released_qty !== '' && (
                                   <span className="badge bg-amber-500/15 text-amber-400 border border-amber-500/20">
                                     <AlertCircle size={11} /> Partial
                                   </span>
