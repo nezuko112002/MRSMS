@@ -12,13 +12,14 @@ import { TablePagination } from '@/components/ui/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatDate, itemHasReleaseActivity, itemNeedsMoreRelease } from '@/lib/utils';
+import { printWarehouseRelease } from '@/lib/warehouseReleasePrint';
 import type { MaterialRequest, MaterialRequestItem } from '@/types';
+import { Warehouse, ArrowRight, Package, Printer } from 'lucide-react';
 
 type RequestWithItems = MaterialRequest & {
   profile?: { full_name: string };
   items?: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'>[];
 };
-import { Warehouse, ArrowRight, Package } from 'lucide-react';
 
 function normalizeItemRow(
   item: Pick<MaterialRequestItem, 'status' | 'release_deferred' | 'purpose' | 'approved_qty' | 'released_qty' | 'requested_qty'> & {
@@ -133,7 +134,7 @@ function WarehousePageContent() {
                     <th className="hidden md:table-cell">Required By</th>
                     <th>Status</th>
                     <th className="hidden md:table-cell">Items</th>
-                    <th>Action</th>
+                    <th className="text-right w-[140px]">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -158,13 +159,24 @@ function WarehousePageContent() {
                         <ItemProgressBadges items={(req as RequestWithItems).items} />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          onClick={() => openWarehouseRelease(req.id, { onSuccess: load })}
-                          className="btn-primary text-xs px-3 py-1.5"
-                        >
-                          Process <ArrowRight size={12} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openWarehouseRelease(req.id, { onSuccess: load })}
+                            className="btn-primary text-xs px-3 py-1.5"
+                          >
+                            Process <ArrowRight size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => printWarehouseRelease(req as RequestWithItems)}
+                            className="btn-ghost p-2 rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                            aria-label={`Print ${req.request_no}`}
+                            title="Print pick list"
+                          >
+                            <Printer size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

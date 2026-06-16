@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, CheckSquare, Warehouse,
-  ClipboardCheck, DollarSign, Users, FolderKanban,
+  ClipboardCheck, Users, FolderKanban,
   LogOut, ChevronLeft, ChevronRight, ChevronUp, HardHat, User, X
 } from 'lucide-react';
 import { cn, ROLE_CONFIG } from '@/lib/utils';
@@ -26,7 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/approvals',     label: 'Approvals',      icon: CheckSquare,     roles: ['manager','admin'] },
   { href: '/warehouse',     label: 'Warehouse',      icon: Warehouse,       roles: ['warehouse','admin'] },
   { href: '/confirmations', label: 'Confirmations',  icon: ClipboardCheck,  roles: ['requestor','admin'] },
-  { href: '/costs',         label: 'Cost Records',   icon: DollarSign,      roles: ['finance','admin','manager'] },
+  { href: '/project-summary', label: 'Project Summary', icon: FileText,    roles: ['requestor','manager','warehouse','finance','admin'] },
   { href: '/admin/projects', label: 'Projects',      icon: FolderKanban,    roles: ['admin'] },
   { href: '/admin',         label: 'Admin',          icon: Users,           roles: ['admin'] },
 ];

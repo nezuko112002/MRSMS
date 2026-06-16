@@ -229,3 +229,56 @@ input[type='number']::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* ============================================================
+   Print styles (Project Summary, Request print, etc.)
+============================================================ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  header,
+  aside,
+  .glass-nav {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  /* Remove glass effects that look bad on paper */
+  .glass,
+  .glass-card,
+  .glass-sidebar,
+  .glass-nav {
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
+  }
+
+  /* Tables: plain borders */
+  .glass-table {
+    border-collapse: collapse;
+  }
+  .glass-table thead tr,
+  .glass-table tbody tr {
+    border-color: rgba(0, 0, 0, 0.15) !important;
+  }
+  .glass-table thead th {
+    color: #000 !important;
+  }
+  .glass-table tbody td {
+    color: #000 !important;
+  }
+
+  /* Ensure sections can be split cleanly */
+  .page-break-avoid {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

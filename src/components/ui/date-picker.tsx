@@ -12,6 +12,7 @@ interface DatePickerProps {
   value?: string;
   onChange: (value: string) => void;
   minDate?: Date;
+  maxDate?: Date;
   placeholder?: string;
   className?: string;
 }
@@ -20,6 +21,7 @@ export function DatePicker({
   value,
   onChange,
   minDate,
+  maxDate,
   placeholder = 'Pick a date',
   className,
 }: DatePickerProps) {
@@ -27,6 +29,15 @@ export function DatePicker({
   const selected = value ? new Date(`${value}T00:00:00`) : undefined;
 
   useEffect(() => setMounted(true), []);
+
+  const disabledMatcher =
+    minDate && maxDate
+      ? { before: minDate, after: maxDate }
+      : minDate
+        ? { before: minDate }
+        : maxDate
+          ? { after: maxDate }
+          : undefined;
 
   if (!mounted) {
     return (
@@ -70,7 +81,7 @@ export function DatePicker({
           mode="single"
           selected={selected}
           onSelect={(date) => onChange(date ? format(date, 'yyyy-MM-dd') : '')}
-          disabled={minDate ? { before: minDate } : undefined}
+          disabled={disabledMatcher}
           initialFocus
         />
       </PopoverContent>
