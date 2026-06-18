@@ -7,6 +7,8 @@ import {
 import type { ItemStatus, RequestStatus } from '@/types';
 
 export type ProjectSummaryMaterialLine = {
+  request_id?: string;
+  item_id?: string;
   request_no: string;
   request_date: string | null;
   request_status: RequestStatus;
@@ -258,6 +260,7 @@ function sanitizePrintFilename(name: string) {
 }
 
 export function materialLineKey(line: ProjectSummaryMaterialLine, index: number) {
+  if (line.item_id) return line.item_id;
   return `${line.request_no}::${index}::${line.description}`;
 }
 

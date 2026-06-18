@@ -239,6 +239,8 @@ export default function ProjectSummaryPage() {
           if (isWarehouseDeferred(item)) agg.deferredItems += 1;
 
           agg.materialLines.push({
+            request_id: r.id,
+            item_id: rawItem.id,
             request_no: r.request_no,
             request_date: r.created_at ?? null,
             request_status: displayReqStatus,
@@ -504,6 +506,9 @@ export default function ProjectSummaryPage() {
         open={printDialogOpen}
         summary={printSummary}
         onOpenChange={setPrintDialogOpen}
+        canSaveCosts={canViewCosts}
+        userId={profile?.id ?? null}
+        onCostsSaved={() => load({ silent: true })}
       />
     </AppShell>
   );

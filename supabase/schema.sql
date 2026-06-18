@@ -352,6 +352,16 @@ create policy "Finance and admin can view costs" on cost_records for select usin
   public.has_role(array['finance', 'admin', 'manager']::user_role[])
 );
 create policy "System can insert costs" on cost_records for insert with check (auth.role() = 'authenticated');
+create policy "Finance can update costs" on cost_records for update using (
+  public.has_role(array['finance', 'admin', 'manager']::user_role[])
+) with check (
+  public.has_role(array['finance', 'admin', 'manager']::user_role[])
+);
+create policy "Finance can delete costs" on cost_records for delete using (
+  public.has_role(array['finance', 'admin', 'manager']::user_role[])
+);
+
+create unique index idx_cost_records_item_id_unique on cost_records(item_id);
 
 -- ============================================================
 -- SEED DATA — Sample inventory items

@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { createClient } from '@/lib/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +21,7 @@ import {
   printProjectSummary,
   type ProjectSummaryPrintData,
 } from '@/lib/projectSummaryPrint';
+import { fetchCostsByItemIds, saveProjectSummaryCosts } from '@/lib/projectSummaryCosts';
 
 const MAX_UNIT_COST = 99_999_999.99;
 const MAX_COST_WHOLE_DIGITS = 8;
@@ -55,16 +58,68 @@ type Props = {
   open: boolean;
   summary: ProjectSummaryPrintData | null;
   onOpenChange: (open: boolean) => void;
+  canSaveCosts?: boolean;
+  userId?: string | null;
+  onCostsSaved?: () => void;
 };
 
-export function ProjectSummaryPrintDialog({ open, summary, onOpenChange }: Props) {
+export function ProjectSummaryPrintDialog({
+  open,
+  summary,
+  onOpenChange,
+  canSaveCosts = false,
+  userId = null,
+  onCostsSaved,
+}: Props) {
+  const supabase = useMemo(() => createClient(), []);
   const [costs, setCosts] = useState<Record<string, string>>({});
+  const [loadingCosts, setLoadingCosts] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
+    if (!open || !summary) {
       setCosts({});
+      return;
     }
-  }, [open, summary?.project_name]);
+
+    if (!canSaveCosts) {
+      setCosts({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSavedCosts() {
+      setLoadingCosts(true);
+      try {
+        const itemIds = summary!.materialLines
+          .map(line => line.item_id)
+          .filter((id): id is string => Boolean(id));
+
+        const saved = await fetchCostsByItemIds(supabase, itemIds);
+        if (cancelled) return;
+
+        const initial: Record<string, string> = {};
+        summary!.materialLines.forEach((line, index) => {
+          const key = materialLineKey(line, index);
+          const unitCost = line.item_id ? saved[line.item_id] : undefined;
+          if (unitCost != null) {
+            initial[key] = String(unitCost);
+          }
+        });
+        setCosts(initial);
+      } catch {
+        if (!cancelled) toast.error('Could not load saved costs');
+      } finally {
+        if (!cancelled) setLoadingCosts(false);
+      }
+    }
+
+    loadSavedCosts();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, summary, canSaveCosts, supabase]);
 
   const rows = useMemo(() => {
     if (!summary) return [];
@@ -91,34 +146,58 @@ export function ProjectSummaryPrintDialog({ open, summary, onOpenChange }: Props
     setCosts(prev => ({ ...prev, [key]: sanitized }));
   }
 
-  function handlePrint() {
-    if (!summary) return;
-
+  function buildCostsByKey() {
     const costsByKey: Record<string, number> = {};
     for (const row of rows) {
       if (row.unitCost != null) {
         costsByKey[row.key] = row.unitCost;
       }
     }
+    return costsByKey;
+  }
 
-    printProjectSummary(applyMaterialCosts(summary, costsByKey));
+  async function handleSaveCosts() {
+    if (!summary || !canSaveCosts) return;
+
+    setSaving(true);
+    try {
+      await saveProjectSummaryCosts(supabase, summary.project_name, rows, userId);
+      onCostsSaved?.();
+      toast.success('Costs saved');
+    } catch {
+      toast.error('Could not save costs. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handlePrint() {
+    if (!summary) return;
+
+    printProjectSummary(applyMaterialCosts(summary, buildCostsByKey()));
     onOpenChange(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl">
+      <DialogContent
+        className="max-w-6xl"
+        onInteractOutside={e => e.preventDefault()}
+      >
         <DialogCloseButton />
         <DialogHeader>
           <DialogTitle>Print — {summary?.project_name ?? 'Project'}</DialogTitle>
           <DialogDescription>
             Enter unit cost for each material (max ₱99,999,999.99). Total is cost × released qty.
+            {canSaveCosts ? ' Use Save Costs to store values in the database.' : ''}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto px-6 py-2">
           {!summary || summary.materialLines.length === 0 ? (
             <p className="text-sm text-gray-500 py-8 text-center">No materials to print.</p>
+          ) : loadingCosts ? (
+            <p className="text-sm text-gray-500 py-8 text-center">Loading saved costs…</p>
           ) : (
             <table className="glass-table w-full text-sm">
               <thead>
@@ -179,11 +258,21 @@ export function ProjectSummaryPrintDialog({ open, summary, onOpenChange }: Props
           <button type="button" className="btn-secondary px-4 py-2" onClick={() => onOpenChange(false)}>
             Cancel
           </button>
+          {canSaveCosts && (
+            <button
+              type="button"
+              className="btn-secondary px-4 py-2"
+              onClick={handleSaveCosts}
+              disabled={!summary || summary.materialLines.length === 0 || loadingCosts || saving}
+            >
+              <Save size={16} /> {saving ? 'Saving…' : 'Save Costs'}
+            </button>
+          )}
           <button
             type="button"
             className="btn-primary px-4 py-2"
             onClick={handlePrint}
-            disabled={!summary || summary.materialLines.length === 0}
+            disabled={!summary || summary.materialLines.length === 0 || loadingCosts}
           >
             <Printer size={16} /> Print
           </button>

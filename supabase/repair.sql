@@ -327,6 +327,24 @@ create policy "Finance and admin can view costs" on public.cost_records
 create policy "System can insert costs" on public.cost_records
   for insert with check (auth.role() = 'authenticated');
 
+drop policy if exists "Finance can update costs" on public.cost_records;
+drop policy if exists "Finance can delete costs" on public.cost_records;
+
+create policy "Finance can update costs" on public.cost_records
+  for update using (
+    public.has_role(array['finance', 'admin', 'manager']::user_role[])
+  )
+  with check (
+    public.has_role(array['finance', 'admin', 'manager']::user_role[])
+  );
+
+create policy "Finance can delete costs" on public.cost_records
+  for delete using (
+    public.has_role(array['finance', 'admin', 'manager']::user_role[])
+  );
+
+create unique index if not exists idx_cost_records_item_id_unique on public.cost_records(item_id);
+
 -- ---------------------------------------------------------------------------
 -- Realtime (required for instant cross-user updates in the app)
 -- Or enable the same tables in Supabase Dashboard → Database → Replication.
