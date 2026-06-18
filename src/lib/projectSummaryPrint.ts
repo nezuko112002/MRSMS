@@ -1,4 +1,5 @@
 import {
+  formatCurrency,
   formatNumber,
   ITEM_STATUS_CONFIG,
   REQUEST_STATUS_CONFIG,
@@ -17,6 +18,8 @@ export type ProjectSummaryMaterialLine = {
   approved_qty: number;
   released_qty: number;
   received_qty: number;
+  unit_cost?: number | null;
+  line_total?: number | null;
 };
 
 export type ProjectSummaryPrintData = {
@@ -31,6 +34,7 @@ export type ProjectSummaryPrintData = {
   totalCost: number | null;
   lastActivityAt: string | null;
   materialLines: ProjectSummaryMaterialLine[];
+  grand_total?: number | null;
 };
 
 const REQUEST_STATUS_ORDER: RequestStatus[] = [
@@ -253,6 +257,56 @@ function sanitizePrintFilename(name: string) {
   return name.replace(/[\\/:*?"<>|]/g, '').trim() || 'Project Summary';
 }
 
+export function materialLineKey(line: ProjectSummaryMaterialLine, index: number) {
+  return `${line.request_no}::${index}::${line.description}`;
+}
+
+export function computeMaterialLineTotal(unitCost: number, releasedQty: number) {
+  return unitCost * releasedQty;
+}
+
+const MAX_PRINT_UNIT_COST = 99_999_999.99;
+
+function clampUnitCost(value: number) {
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.min(value, MAX_PRINT_UNIT_COST);
+}
+
+export function applyMaterialCosts(
+  summary: ProjectSummaryPrintData,
+  costsByKey: Record<string, number>,
+): ProjectSummaryPrintData {
+  let grand_total = 0;
+  let hasCost = false;
+
+  const materialLines = summary.materialLines.map((line, index) => {
+    const key = materialLineKey(line, index);
+    if (!(key in costsByKey)) {
+      return { ...line, unit_cost: null, line_total: null };
+    }
+
+    hasCost = true;
+    const unit_cost = clampUnitCost(costsByKey[key]);
+    if (unit_cost == null) {
+      return { ...line, unit_cost: null, line_total: null };
+    }
+    const line_total = computeMaterialLineTotal(unit_cost, line.released_qty);
+    grand_total += line_total;
+    return { ...line, unit_cost, line_total };
+  });
+
+  return {
+    ...summary,
+    materialLines,
+    grand_total: hasCost ? grand_total : null,
+  };
+}
+
+function formatCostCell(value: number | null | undefined) {
+  if (value == null) return '&nbsp;';
+  return escapeHtml(formatCurrency(value));
+}
+
 function isRequestDateInRange(
   requestDate: string | null,
   dateFrom: string,
@@ -334,7 +388,7 @@ function statusRows(
   return rows || '<tr><td colspan="2">No data</td></tr>';
 }
 
-function materialRows(lines: ProjectSummaryMaterialLine[]) {
+function materialRows(lines: ProjectSummaryMaterialLine[], grandTotal: number | null | undefined) {
   if (!lines.length) {
     return '<tr><td colspan="10">No materials</td></tr>';
   }
@@ -342,25 +396,36 @@ function materialRows(lines: ProjectSummaryMaterialLine[]) {
   const rows = lines
     .map(line => {
       const purpose = line.purpose?.trim() || '—';
+      const costTd = line.unit_cost != null
+        ? `<td class="num">${formatCostCell(line.unit_cost)}</td>`
+        : '<td class="blank-cell">&nbsp;</td>';
+      const totalTd = line.line_total != null
+        ? `<td class="num">${formatCostCell(line.line_total)}</td>`
+        : '<td class="blank-cell num">&nbsp;</td>';
+
       return `<tr>
         <td class="mono">${escapeHtml(line.request_no)}</td>
         <td class="nowrap">${escapeHtml(formatRequestDate(line.request_date))}</td>
         <td class="col-material">${escapeHtml(line.description)}</td>
         <td>${escapeHtml(line.unit)}</td>
-        <td class="blank-cell">&nbsp;</td>
+        ${costTd}
         <td class="num">${escapeHtml(formatNumber(line.requested_qty))}</td>
         <td class="num">${escapeHtml(formatNumber(line.approved_qty))}</td>
         <td class="num">${escapeHtml(formatNumber(line.released_qty))}</td>
         <td class="col-purpose">${escapeHtml(purpose)}</td>
-        <td class="blank-cell num">&nbsp;</td>
+        ${totalTd}
       </tr>`;
     })
     .join('');
 
+  const grandTotalCell = grandTotal != null
+    ? `<td class="num">${formatCostCell(grandTotal)}</td>`
+    : '<td class="blank-cell num">&nbsp;</td>';
+
   return `${rows}
     <tr class="grand-total">
       <td colspan="9" class="num">Grand Total</td>
-      <td class="blank-cell num">&nbsp;</td>
+      ${grandTotalCell}
     </tr>`;
 }
 
@@ -434,7 +499,7 @@ export function buildProjectSummaryPrintHtml(
             </tr>
           </thead>
           <tbody>
-            ${materialRows(summary.materialLines)}
+            ${materialRows(summary.materialLines, summary.grand_total)}
           </tbody>
         </table>
       </div>

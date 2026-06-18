@@ -11,7 +11,12 @@ import type { MaterialRequest, MaterialRequestItem, Project, RequestStatus, Item
 import toast from 'react-hot-toast';
 import { Printer, FileText } from 'lucide-react';
 import { isWarehouseDeferred } from '@/lib/warehouseDeferred';
-import { printProjectSummary, filterProjectSummaryByDateRange, type ProjectSummaryMaterialLine } from '@/lib/projectSummaryPrint';
+import {
+  filterProjectSummaryByDateRange,
+  type ProjectSummaryMaterialLine,
+  type ProjectSummaryPrintData,
+} from '@/lib/projectSummaryPrint';
+import { ProjectSummaryPrintDialog } from '@/components/project-summary/ProjectSummaryPrintDialog';
 import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
@@ -104,6 +109,8 @@ export default function ProjectSummaryPage() {
   const [selectedProject, setSelectedProject] = useState<'all' | string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [printSummary, setPrintSummary] = useState<ProjectSummaryPrintData | null>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
 
   const canViewCosts = profile?.role === 'finance' || profile?.role === 'admin' || profile?.role === 'manager';
 
@@ -120,7 +127,8 @@ export default function ProjectSummaryPage() {
       return;
     }
 
-    printProjectSummary(printable);
+    setPrintSummary(printable);
+    setPrintDialogOpen(true);
   };
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -491,6 +499,12 @@ export default function ProjectSummaryPage() {
           </div>
         )}
       </div>
+
+      <ProjectSummaryPrintDialog
+        open={printDialogOpen}
+        summary={printSummary}
+        onOpenChange={setPrintDialogOpen}
+      />
     </AppShell>
   );
 }
